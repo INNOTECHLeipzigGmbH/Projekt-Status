@@ -1,0 +1,3206 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Projekte-Statusreport</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6;
+    --series-1-dark:  #184f95;
+    --series-1-light: #cde2fb;
+    --status-good:      #0ca30c;
+    --status-warning:   #fab219;
+    --status-serious:   #ec835a;
+    --status-critical:  #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-1-dark:  #86b6ef;
+      --series-1-light: #184f95;
+      --status-good:      #0ca30c;
+      --status-warning:   #fab219;
+      --status-serious:   #ec835a;
+      --status-critical:  #d03b3b;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page-plane:     #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-1:       #3987e5;
+    --series-1-dark:  #86b6ef;
+    --series-1-light: #184f95;
+    --status-good:      #0ca30c;
+    --status-warning:   #fab219;
+    --status-serious:   #ec835a;
+    --status-critical:  #d03b3b;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body.viz-root {
+    background: var(--page-plane);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+  .title { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
+  .subtitle { font-size: 14px; color: var(--text-secondary); margin: 0; }
+  .meta { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+  .theme-toggle {
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .theme-toggle:hover { color: var(--text-primary); }
+
+  .topbar-actions { display: flex; align-items: center; gap: 8px; }
+  .external-link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    text-decoration: none;
+  }
+  .external-link-btn:hover { color: var(--text-primary); border-color: var(--series-1); }
+
+  section { margin-bottom: 36px; }
+  h2 { font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); margin: 0 0 12px; }
+  .section-note { font-size: 12px; color: var(--text-muted); margin: -6px 0 14px; }
+
+  /* KPI tiles */
+  .kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .kpi-tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .kpi-value { font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+  .kpi-tile.flag .kpi-value { color: var(--status-critical); }
+
+  /* bar chart */
+  .barchart { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bar-row:last-child { margin-bottom: 0; }
+  .bar-label { width: 118px; font-size: 12px; color: var(--text-secondary); flex-shrink: 0; text-align: right; }
+  .bar-track { flex: 1; height: 18px; background: var(--gridline); border-radius: 3px; position: relative; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px 0 0 3px; }
+  .bar-count { width: 30px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  /* timeline */
+  .timeline-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 20px; overflow-x: auto; }
+  .timeline-row-label { font-size: 12px; fill: var(--text-secondary); }
+  .timeline-axis-label { font-size: 11px; fill: var(--text-muted); }
+  .timeline-today-label { font-size: 11px; fill: var(--text-secondary); font-weight: 600; }
+
+  /* status chips */
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; }
+  .chip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .chip-good { background: color-mix(in srgb, var(--status-good) 14%, transparent); color: var(--text-primary); }
+  .chip-good .chip-dot { background: var(--status-good); }
+  .chip-warning { background: color-mix(in srgb, var(--status-warning) 18%, transparent); color: var(--text-primary); }
+  .chip-warning .chip-dot { background: var(--status-warning); }
+  .chip-critical { background: color-mix(in srgb, var(--status-critical) 14%, transparent); color: var(--text-primary); }
+  .chip-critical .chip-dot { background: var(--status-critical); }
+  .chip-muted { color: var(--text-muted); }
+  .chip-muted .chip-dot { background: var(--baseline); }
+
+  .lph-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 26px; height: 22px; padding: 0 6px; border-radius: 6px;
+    font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: #fff;
+  }
+  .lph-badge.none { background: var(--baseline); color: var(--text-secondary); }
+  .lph-badge.beratung { background: #6b5bd6; color: #fff; }
+
+  /* table */
+  table.proj-table { width: 100%; border-collapse: collapse; background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  table.proj-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); font-weight: 600; padding: 10px 12px; border-bottom: 1px solid var(--gridline); }
+  table.proj-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid var(--gridline); vertical-align: middle; }
+  table.proj-table tbody tr.main-row { cursor: pointer; }
+  table.proj-table tbody tr.main-row:hover { background: color-mix(in srgb, var(--series-1) 6%, transparent); }
+  table.proj-table tbody tr:last-child td { border-bottom: none; }
+  .proj-name { font-weight: 600; }
+  .proj-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .caret { display: inline-block; transition: transform 0.15s; color: var(--text-muted); margin-right: 6px; }
+  .main-row.expanded .caret { transform: rotate(90deg); }
+  .empty-dash { color: var(--text-muted); }
+
+  .detail-row td { padding: 0; border-bottom: 1px solid var(--gridline); }
+  .detail-row.collapsed { display: none; }
+  .detail-inner { padding: 6px 24px 20px 40px; background: var(--page-plane); }
+  .detail-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .detail-block h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); margin: 14px 0 8px; }
+  .detail-block:first-child h4:first-child { margin-top: 4px; }
+  .milestone-list { display: flex; flex-direction: column; gap: 6px; }
+  .milestone { display: flex; justify-content: space-between; font-size: 12px; gap: 10px; }
+  .milestone-name { color: var(--text-secondary); }
+  .milestone-date { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .milestone.provisional .milestone-date::after { content: " *"; color: var(--series-1); }
+  .milestone.flagged .milestone-date { color: var(--status-critical); }
+  .chip-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .notes-box { margin-top: 12px; font-size: 12px; color: var(--text-secondary); background: color-mix(in srgb, var(--status-warning) 10%, transparent); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+
+  /* Notizen / ToDos */
+  .todo-block { grid-column: 1 / -1; }
+  .todo-display { font-size: 12.5px; color: var(--text-secondary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; white-space: pre-wrap; line-height: 1.55; }
+  .todo-display.empty { color: var(--text-muted); font-style: italic; }
+  .notes-textarea { width: 100%; min-height: 90px; resize: vertical; font: inherit; font-size: 13px; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; box-sizing: border-box; line-height: 1.5; }
+  .notes-textarea:focus { outline: none; border-color: var(--series-1); }
+
+  /* Eigene ToDos: Bearbeitungsliste */
+  .own-todo-edit-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+  .own-todo-edit-item { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--surface-1); display: flex; flex-direction: column; gap: 6px; }
+  .own-todo-text-input { width: 100%; font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--page-plane); color: var(--text-primary); box-sizing: border-box; }
+  .own-todo-edit-row2 { display: flex; gap: 8px; align-items: center; }
+  .own-todo-resp-input { flex: 1; font: inherit; font-size: 12.5px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--page-plane); color: var(--text-primary); }
+  .own-todo-status-select { font: inherit; font-size: 12.5px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--page-plane); color: var(--text-primary); }
+  .own-todo-remove-btn { border: 1px solid var(--border); background: transparent; color: var(--text-muted); border-radius: 6px; padding: 4px 9px; font-size: 12px; cursor: pointer; line-height: 1; }
+  .own-todo-remove-btn:hover { color: var(--status-critical); border-color: var(--status-critical); }
+  .own-todo-add-btn { margin-top: 2px; }
+  .own-todo-done .proto-todo-title { text-decoration: line-through; opacity: 0.6; }
+  .own-todo-done { opacity: 0.7; }
+  .todo-indicator { font-size: 11px; margin-left: 6px; color: var(--series-1); }
+
+  /* INNOTECH-ToDos aus Protokollen */
+  .proto-todo-list { display: flex; flex-direction: column; gap: 8px; }
+  .proto-todo-item { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--surface-1); }
+  .proto-todo-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .proto-todo-title { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
+  .proto-todo-body { font-size: 12px; color: var(--text-secondary); white-space: pre-wrap; margin-top: 4px; line-height: 1.5; }
+  .proto-todo-meta { font-size: 10.5px; color: var(--text-muted); margin-top: 6px; }
+
+  /* gaps list */
+  .gaps-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .gap-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .gap-card h3 { font-size: 13px; margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
+  .gap-card ul { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; }
+  .gap-card ul li strong { color: var(--text-primary); }
+  .count-badge { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 5px; border-radius:999px; background: var(--status-critical); color:#fff; font-size:11px; font-weight:700; }
+
+  footer.legend { font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--gridline); padding-top: 16px; line-height: 1.7; }
+  footer.legend b { color: var(--text-secondary); }
+
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .detail-cols { grid-template-columns: 1fr; }
+    .gaps-grid { grid-template-columns: 1fr; }
+    .bar-label { width: 90px; }
+  }
+
+  .load-status { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+  .load-status.error { color: var(--status-critical); }
+  .add-project-btn {
+    border: 1px solid var(--border); background: var(--series-1); color: #fff;
+    border-radius: 8px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .add-project-btn:hover { opacity: 0.9; }
+  .section-header-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .section-header-row h2 { margin: 0; }
+  .detail-header { display: flex; justify-content: flex-end; padding-top: 8px; }
+  .btn-edit {
+    border: 1px solid var(--border); background: transparent; color: var(--series-1);
+    border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+  }
+  .btn-edit:hover { background: color-mix(in srgb, var(--series-1) 10%, transparent); }
+  .edit-form { padding-top: 4px; }
+  .edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  .edit-field { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-muted); }
+  .edit-field input, .edit-field select {
+    font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface-1); color: var(--text-primary); font-family: inherit;
+  }
+  .edit-actions { display: flex; align-items: center; gap: 10px; margin: 16px 0 8px; }
+  .btn-primary {
+    background: var(--series-1); color: #fff; border: none; border-radius: 6px;
+    padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .btn-secondary {
+    background: transparent; color: var(--text-secondary); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 16px; font-size: 13px; cursor: pointer;
+  }
+  .save-status { font-size: 12px; color: var(--text-secondary); }
+
+  /* view tabs */
+  .view-tabs { display: flex; gap: 6px; margin-bottom: 24px; }
+  .view-tab {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+    border-radius: 8px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .view-tab.active { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+  .view-panel.hidden { display: none; }
+
+  /* GF-Bereich: kompakter Login-Button im Header statt eigener Seite */
+  .gf-topbar-btn {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+    border-radius: 8px; padding: 7px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .gf-topbar-btn.logged-in { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+  .gf-topbar-logout { border: none; background: transparent; color: inherit; cursor: pointer; font-size: 12px; text-decoration: underline; padding: 0; margin-left: 4px; }
+
+  /* GF-Login als kleines Modal statt eigener Seite */
+  .gf-modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); display: flex; align-items: center; justify-content: center; z-index: 5000; }
+  .gf-modal-overlay.hidden { display: none; }
+  .gf-login-box { max-width: 360px; width: calc(100% - 32px); margin: 0; text-align: center; background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 26px 28px; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+  .gf-login-box h2 { margin-bottom: 4px; }
+  .gf-login-form { display: flex; flex-direction: column; gap: 12px; text-align: left; margin-top: 18px; }
+  .gf-login-form .btn-primary { margin-top: 4px; }
+  .gf-login-error { color: var(--status-critical); font-size: 12px; min-height: 16px; margin: 0; }
+  .gf-login-close { position: absolute; top: 10px; right: 12px; border: none; background: transparent; color: var(--text-muted); font-size: 18px; cursor: pointer; }
+  .gf-login-box-wrap { position: relative; }
+
+  /* GF-Themen: einklappbarer Bereich auf der Dashboard-Seite, nur nach Login sichtbar */
+  .gf-themen-section { display: none; }
+  .gf-themen-section.visible { display: block; }
+  .gf-content-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; cursor: pointer; }
+  .gf-content-actions { display: flex; align-items: center; gap: 10px; }
+  .gf-collapse-caret { font-size: 12px; color: var(--text-muted); }
+  .gf-themen-body.collapsed { display: none; }
+  .gf-themen-list { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
+  .gf-thema-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: var(--surface-1); }
+  .gf-thema-row1 { display: flex; gap: 10px; align-items: flex-start; }
+  .gf-thema-row1 input.gf-titel { flex: 1; font-size: 14px; font-weight: 600; }
+  .gf-thema-row1 input.gf-gruppe-input { width: 150px; flex: 0 0 150px; font-size: 11.5px; color: var(--text-muted); padding: 5px 8px; }
+  .gf-group-heading { display: flex; align-items: center; gap: 8px; padding-bottom: 5px; border-bottom: 2px solid var(--series-1); }
+  .gf-group-heading::before { content: ''; display: block; width: 4px; height: 14px; background: var(--series-1); border-radius: 2px; flex-shrink: 0; }
+  .gf-group-heading span { font-size: 12px; font-weight: 700; color: var(--series-1); }
+  .gf-thema-remove { border: 1px solid var(--border); background: transparent; color: var(--text-muted); border-radius: 6px; width: 28px; height: 28px; cursor: pointer; flex-shrink: 0; }
+  .gf-thema-remove:hover { color: var(--status-critical); border-color: var(--status-critical); }
+  .gf-thema-desc { width: 100%; margin-top: 10px; font-size: 13px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); font-family: inherit; resize: vertical; min-height: 44px; }
+  .gf-thema-meta { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .gf-save-flash { font-size: 11px; color: var(--status-good); margin-top: 6px; min-height: 14px; opacity: 0; transition: opacity 0.2s; }
+  .gf-save-flash.show { opacity: 1; }
+  .gf-add-btn { margin-top: 4px; }
+  .gf-empty { color: var(--text-muted); font-size: 13px; padding: 20px 0; text-align: center; }
+
+  /* GF-only Zusatzinfos je Projekt (Detailansicht + Bearbeiten-Formular) */
+  .detail-block.gf-block { border: 1px solid var(--series-1); border-radius: 8px; padding: 10px 12px; background: color-mix(in srgb, var(--series-1) 7%, var(--surface-1)); }
+  .detail-block.gf-block h4 { color: var(--series-1); }
+  .gf-block-note { font-size: 11px; color: var(--text-muted); margin: -4px 0 8px; }
+
+  /* Terminplan / Gantt (aus MS-Project-XML-Export) */
+  .terminplan-block { grid-column: 1 / -1; }
+  .terminplan-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 14px 0 8px; }
+  .terminplan-header h4 { margin: 0; }
+  .terminplan-header-right { display: flex; align-items: center; gap: 10px; }
+  .terminplan-meta { font-size: 11px; color: var(--text-muted); }
+  .terminplan-upload-btn {
+    display: inline-flex; align-items: center; cursor: pointer;
+    border: 1px solid var(--border); background: transparent; color: var(--series-1);
+    border-radius: 6px; padding: 4px 10px; font-size: 12px;
+  }
+  .terminplan-upload-btn:hover { background: color-mix(in srgb, var(--series-1) 10%, transparent); }
+  .terminplan-empty { font-size: 12.5px; color: var(--text-muted); font-style: italic; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .gantt-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); }
+  .gantt-chart { min-width: 760px; }
+  .gantt-head-row { font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); font-weight: 600; }
+  .gantt-head-cell { display: flex; align-items: center; }
+  .gantt-month-row { position: relative; height: 22px; border-bottom: 1px solid var(--gridline); }
+  .gantt-month-label { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; font-size: 10px; color: var(--text-muted); padding-left: 4px; border-left: 1px solid var(--gridline); white-space: nowrap; }
+  .gantt-row { display: flex; align-items: stretch; border-bottom: 1px solid var(--gridline); min-height: 26px; }
+  .gantt-row:last-child { border-bottom: none; }
+  .gantt-col-name { width: 260px; flex: 0 0 260px; font-size: 11.5px; padding: 5px 8px; color: var(--text-secondary); white-space: normal; word-break: break-word; line-height: 1.35; box-sizing: border-box; display: flex; align-items: center; }
+  .gantt-row.is-summary .gantt-col-name { font-weight: 700; color: var(--text-primary); }
+  .gantt-col-date { width: 72px; flex: 0 0 72px; font-size: 10.5px; color: var(--text-muted); padding: 5px 4px; box-sizing: border-box; display: flex; align-items: center; font-variant-numeric: tabular-nums; border-left: 1px solid var(--gridline); }
+  .gantt-track { flex: 1; position: relative; min-height: 26px; border-left: 1px solid var(--gridline); }
+  .gantt-bar { position: absolute; top: 50%; transform: translateY(-50%); height: 14px; border-radius: 3px; background: color-mix(in srgb, var(--series-1) 20%, var(--surface-1)); border: 1px solid var(--series-1); overflow: hidden; min-width: 3px; }
+  .gantt-row.is-summary .gantt-bar { height: 7px; border-radius: 2px; background: var(--series-1-dark); border-color: var(--series-1-dark); }
+  .gantt-bar-fill { position: absolute; top: 0; left: 0; bottom: 0; background: var(--series-1); }
+  .gantt-milestone { position: absolute; top: 50%; width: 14px; height: 14px; margin-top: -7px; margin-left: -7px; background: var(--series-1-dark); transform: rotate(45deg); border-radius: 2px; }
+  .gantt-bar-label { position: absolute; top: 50%; transform: translateY(-50%); font-size: 10.5px; color: var(--text-secondary); white-space: nowrap; }
+  .gantt-timeline { position: relative; }
+  .gantt-today-line { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed var(--status-critical); z-index: 2; pointer-events: none; }
+  .gantt-today-label { position: absolute; top: 1px; transform: translateX(-50%); font-size: 9px; font-weight: 700; color: var(--status-critical); background: var(--surface-1); padding: 0 4px; white-space: nowrap; z-index: 3; border-radius: 3px; }
+
+  /* Eingangskontrolle (Kanban je Projekt) */
+  .eingang-block { grid-column: 1 / -1; }
+  .eingang-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 14px 0 4px; }
+  .eingang-header h4 { margin: 0 0 2px; }
+  .eingang-sub { font-size: 11.5px; color: var(--text-muted); max-width: 640px; line-height: 1.5; }
+  .eingang-add-btn {
+    display: inline-flex; align-items: center; cursor: pointer; white-space: nowrap;
+    border: 1px solid var(--series-1); background: transparent; color: var(--series-1);
+    border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 600;
+  }
+  .eingang-add-btn:hover { background: color-mix(in srgb, var(--series-1) 10%, transparent); }
+  .eingang-kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+  .eingang-col-hdr { display: flex; align-items: center; gap: 6px; padding: 7px 9px; border-radius: 8px 8px 0 0; font-size: 11px; font-weight: 700; }
+  .eingang-col-hdr .eingang-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .eingang-col-count { margin-left: auto; font-size: 10px; font-weight: 700; background: rgba(255,255,255,.6); border-radius: 10px; padding: 1px 6px; color: inherit; }
+  .eingang-col-grau .eingang-col-hdr { background: color-mix(in srgb, var(--text-muted) 18%, transparent); color: var(--text-secondary); }
+  .eingang-col-grau .eingang-dot { background: var(--text-muted); }
+  .eingang-col-rot .eingang-col-hdr { background: color-mix(in srgb, var(--status-critical) 16%, transparent); color: var(--status-critical); }
+  .eingang-col-rot .eingang-dot { background: var(--status-critical); }
+  .eingang-col-gelb .eingang-col-hdr { background: color-mix(in srgb, var(--status-warning) 22%, transparent); color: color-mix(in srgb, var(--status-warning) 70%, black); }
+  .eingang-col-gelb .eingang-dot { background: var(--status-warning); }
+  .eingang-col-gruen .eingang-col-hdr { background: color-mix(in srgb, var(--status-good) 16%, transparent); color: var(--status-good); }
+  .eingang-col-gruen .eingang-dot { background: var(--status-good); }
+  .eingang-col-body { border: 1px solid var(--gridline); border-top: none; border-radius: 0 0 8px 8px; padding: 7px; min-height: 90px; display: flex; flex-direction: column; gap: 7px; background: var(--page-plane); transition: background 0.12s; }
+  .eingang-col-body.drag-over { background: color-mix(in srgb, var(--series-1) 10%, var(--page-plane)); }
+  .eingang-card { background: var(--surface-1); border: 1px solid var(--border); border-left: 3px solid var(--text-muted); border-radius: 7px; padding: 8px 9px; box-shadow: 0 1px 2px rgba(0,0,0,.04); cursor: grab; }
+  .eingang-card.dragging { opacity: 0.4; }
+  .eingang-card.c-rot { border-left-color: var(--status-critical); }
+  .eingang-card.c-gelb { border-left-color: var(--status-warning); }
+  .eingang-card.c-gruen { border-left-color: var(--status-good); }
+  .eingang-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+  .eingang-card-title { font-size: 12px; font-weight: 600; line-height: 1.35; margin-bottom: 4px; }
+  .eingang-card-remove { border: none; background: transparent; color: var(--text-muted); font-size: 13px; line-height: 1; cursor: pointer; padding: 0 0 0 4px; flex-shrink: 0; }
+  .eingang-card-remove:hover { color: var(--status-critical); }
+  .eingang-card-meta { font-size: 10px; color: var(--text-muted); margin-bottom: 6px; }
+  .eingang-card-notiz { font-size: 10.5px; color: var(--text-secondary); font-style: italic; margin-bottom: 6px; cursor: text; }
+  .eingang-card-notiz:empty::before { content: "+ Notiz hinzufügen"; color: var(--text-muted); font-style: italic; }
+  .eingang-card-notiz:focus { outline: none; background: color-mix(in srgb, var(--series-1) 6%, transparent); border-radius: 4px; }
+  .eingang-link-chip { display: inline-block; font-size: 9.5px; border: 1px solid var(--border); border-radius: 5px; padding: 2px 6px; color: var(--series-1-dark); background: var(--series-1-light); white-space: nowrap; text-decoration: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .eingang-link-chip.local { color: #6b21a8; background: #f3e8ff; }
+  .eingang-card-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+  .eingang-avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--series-1); color: #fff; font-size: 8.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .eingang-card-date { font-size: 9.5px; color: var(--text-muted); }
+  .eingang-empty-slot { font-size: 10.5px; color: var(--text-muted); text-align: center; padding: 6px 4px; }
+  .eingang-form { border: 1px solid var(--series-1); border-radius: 8px; padding: 10px; background: color-mix(in srgb, var(--series-1) 6%, var(--surface-1)); margin-bottom: 10px; display: flex; flex-direction: column; gap: 7px; }
+  .eingang-form input, .eingang-form select { font: inherit; font-size: 12.5px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); box-sizing: border-box; }
+  .eingang-form-row { display: flex; gap: 7px; }
+  .eingang-form-row > * { flex: 1; min-width: 0; }
+  .eingang-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .eingang-form-actions button { border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+  .eingang-form-save { border: 1px solid var(--series-1); background: var(--series-1); color: #fff; font-weight: 600; }
+  .eingang-form-cancel { border: 1px solid var(--border); background: transparent; color: var(--text-secondary); }
+
+  /* Ansprechpartner (Kontaktliste je Gewerk/Projekt) */
+  .ap-stack-cell { white-space: nowrap; }
+  .ap-stack { display: flex; align-items: center; }
+  .ap-avatar { width: 22px; height: 22px; border-radius: 50%; color: #fff; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid var(--surface-1); margin-left: -7px; flex-shrink: 0; }
+  .ap-avatar:first-child { margin-left: 0; }
+  .ap-more { width: 22px; height: 22px; border-radius: 50%; background: var(--gridline); color: var(--text-secondary); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; border: 2px solid var(--surface-1); margin-left: -7px; flex-shrink: 0; }
+
+  .ap-block { grid-column: 1 / -1; }
+  .ap-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 14px 0 4px; }
+  .ap-header h4 { margin: 0 0 2px; }
+  .ap-sub { font-size: 11.5px; color: var(--text-muted); max-width: 640px; line-height: 1.5; }
+  .ap-add-btn {
+    display: inline-flex; align-items: center; cursor: pointer; white-space: nowrap;
+    border: 1px solid var(--series-1); background: transparent; color: var(--series-1);
+    border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 600;
+  }
+  .ap-add-btn:hover { background: color-mix(in srgb, var(--series-1) 10%, transparent); }
+  .ap-empty { font-size: 12.5px; color: var(--text-muted); font-style: italic; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
+  .ap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
+  .ap-card { display: flex; gap: 10px; border: 1px solid var(--border); border-radius: 9px; padding: 10px 11px; background: var(--surface-1); box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+  .ap-card-avatar { width: 32px; height: 32px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .ap-card-name { font-size: 12.5px; font-weight: 700; }
+  .ap-card-firma { font-size: 10.5px; color: var(--text-muted); margin-bottom: 5px; }
+  .ap-chip-row { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+  .ap-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 9.5px; font-weight: 700; color: var(--text-primary); border-radius: 20px; padding: 2px 4px 2px 8px; white-space: nowrap; }
+  .ap-chip-remove { border: none; background: transparent; color: inherit; opacity: 0.6; font-size: 10px; line-height: 1; cursor: pointer; padding: 0 3px; }
+  .ap-chip-remove:hover { opacity: 1; }
+  .ap-contact-line { font-size: 10.5px; color: var(--series-1-dark); word-break: break-word; }
+  .ap-form-holder:empty { margin: 0; }
+  .ap-form { border: 1px solid var(--series-1); border-radius: 8px; padding: 10px; background: color-mix(in srgb, var(--series-1) 6%, var(--surface-1)); margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+  .ap-form input, .ap-form select { font: inherit; font-size: 12.5px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); box-sizing: border-box; }
+  .ap-form-row { display: flex; gap: 7px; }
+  .ap-form-row > * { flex: 1; min-width: 0; }
+  .ap-form-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  .ap-form-actions button { border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+  .ap-form-save { border: 1px solid var(--series-1); background: var(--series-1); color: #fff; font-weight: 600; }
+  .ap-form-cancel { border: 1px solid var(--border); background: transparent; color: var(--text-secondary); }
+  .ap-drop { border: 1.5px dashed var(--border); border-radius: 8px; padding: 10px; text-align: center; font-size: 11px; color: var(--text-muted); transition: background 0.12s, border-color 0.12s; }
+  .ap-drop.drag-over { background: color-mix(in srgb, var(--series-1) 10%, transparent); border-color: var(--series-1); }
+
+  .gf-kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 12.5px; }
+  .gf-kv-grid .gf-kv-label { color: var(--text-muted); }
+  .gf-notiz-display { font-size: 12.5px; white-space: pre-wrap; margin-top: 8px; }
+  .gf-edit-block { border: 1px solid var(--series-1); border-radius: 8px; padding: 12px 14px; background: color-mix(in srgb, var(--series-1) 6%, var(--surface-1)); margin-top: 10px; }
+  .gf-edit-block h4 { color: var(--series-1); margin-top: 0; }
+  .gf-edit-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 8px; }
+
+  /* excel-style table */
+  .excel-note { font-size: 12px; color: var(--text-muted); margin: -6px 0 14px; }
+  .excel-scroll { overflow: auto; border: 1px solid var(--border); border-radius: 8px; max-height: 78vh; background: var(--surface-1); }
+  table.excel-table { border-collapse: collapse; font-size: 11.5px; white-space: nowrap; }
+  table.excel-table th, table.excel-table td {
+    border: 1px solid var(--gridline); padding: 4px 7px; text-align: center;
+  }
+  table.excel-table thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--baseline); color: var(--text-primary);
+    font-weight: 700; font-size: 10.5px; line-height: 1.25;
+    white-space: normal; min-width: 66px; max-width: 110px;
+  }
+  table.excel-table tbody th {
+    position: sticky; left: 0; z-index: 1;
+    background: var(--surface-1); text-align: left; font-weight: 600;
+    white-space: nowrap; min-width: 190px; box-shadow: 1px 0 0 var(--border);
+  }
+  table.excel-table thead th:first-child { position: sticky; left: 0; top: 0; z-index: 3; text-align: left; background: var(--baseline); }
+  table.excel-table tbody tr:nth-child(even) td, table.excel-table tbody tr:nth-child(even) th { background-color: color-mix(in srgb, var(--gridline) 35%, var(--surface-1)); }
+  table.excel-table tbody tr:nth-child(even) th { background-color: color-mix(in srgb, var(--gridline) 35%, var(--surface-1)); }
+  table.excel-table td.xstat-0 { color: var(--text-muted); }
+  table.excel-table td.xstat-1 { background: color-mix(in srgb, var(--status-critical) 30%, var(--surface-1)); font-weight: 700; }
+  table.excel-table td.xstat-2 { background: color-mix(in srgb, var(--status-warning) 35%, var(--surface-1)); font-weight: 700; }
+  table.excel-table td.xstat-3 { background: color-mix(in srgb, var(--status-good) 28%, var(--surface-1)); font-weight: 700; }
+  table.excel-table td.xprovisional { color: var(--series-1); font-style: italic; }
+  table.excel-table td.xflagged { color: var(--status-critical); font-weight: 700; }
+  table.excel-table td.xlph { font-weight: 700; }
+</style>
+</head>
+<body class="viz-root">
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <p class="title">Projekte-Statusreport</p>
+      <p class="subtitle">Alle INNOTECH-Projekte im Überblick · INNOTECH Leipzig</p>
+      <p class="meta" id="generated-meta"></p>
+      <p class="load-status" id="load-status"></p>
+    </div>
+    <div class="topbar-actions">
+      <a class="external-link-btn" href="https://innotechleipziggmbh.github.io/innotech-protokoll/" target="_blank" rel="noopener">↗ Protokoll-App</a>
+      <button class="gf-topbar-btn" id="gf-topbar-btn" type="button">🔒 GF-Anmeldung</button>
+      <button class="theme-toggle" id="theme-toggle" type="button">Dunkles Design</button>
+    </div>
+  </div>
+
+  <div class="view-tabs">
+    <button class="view-tab active" id="tab-dashboard" type="button" data-view="dashboard">Dashboard</button>
+    <button class="view-tab" id="tab-excel" type="button" data-view="excel">Tabellenansicht (wie Excel)</button>
+  </div>
+
+  <div class="view-panel" id="view-dashboard">
+
+  <section class="gf-themen-section" id="gf-themen-section">
+    <div class="gf-content-header" id="gf-themen-toggle">
+      <h2>🔒 Geschäftsführung – Themen <span class="gf-collapse-caret" id="gf-collapse-caret">▾</span></h2>
+      <div class="gf-content-actions">
+        <span class="gf-user-badge" id="gf-user-badge"></span>
+      </div>
+    </div>
+    <div class="gf-themen-body" id="gf-themen-body">
+      <p class="section-note">Nur für angemeldete Geschäftsführung sichtbar – auch über die Datenbank-API nicht ohne Login einsehbar.</p>
+      <div class="gf-themen-list" id="gf-themen-list"></div>
+      <button class="btn-secondary gf-add-btn" id="gf-add-btn" type="button">+ Thema hinzufügen</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Überblick</h2>
+    <div class="kpi-row" id="kpi-row"></div>
+  </section>
+
+  <section>
+    <h2>Projekte nach aktueller Leistungsphase (LPH)</h2>
+    <p class="section-note">„Ohne Angabe“ heißt: es gibt bereits Termine/Checklisten-Einträge, aber kein Wert in Spalte „Aktuelle LPH“.</p>
+    <div class="barchart" id="phase-chart"></div>
+  </section>
+
+  <section>
+    <h2>Bauzeitraum je Projekt</h2>
+    <p class="section-note">Balken von Baubeginn bis Bauende. Gestrichelte Linie = heute (11.08.2026). Rot umrandete Marker = im Original rot markierte Termine.</p>
+    <div class="timeline-card" id="timeline-card"></div>
+  </section>
+
+  <section>
+    <div class="section-header-row">
+      <h2>Projektübersicht <span style="color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0;">(Zeile anklicken für Details)</span></h2>
+      <button class="add-project-btn" id="add-project-btn" type="button">+ Projekt hinzufügen</button>
+    </div>
+    <table class="proj-table" id="proj-table">
+      <thead>
+        <tr>
+          <th>Projekt</th>
+          <th>Auftraggeber</th>
+          <th>PL Innotech</th>
+          <th>PL Kunde</th>
+          <th>Aktuelle LPH</th>
+          <th>Baubeginn</th>
+          <th>Bauende</th>
+          <th>Offene Punkte</th>
+          <th>Ansprechpartner</th>
+        </tr>
+      </thead>
+      <tbody id="proj-tbody"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Datenlücken &amp; To-Dos</h2>
+    <div class="gaps-grid" id="gaps-grid"></div>
+  </section>
+
+  </div>
+
+  <div class="view-panel hidden" id="view-excel">
+    <section>
+      <h2>Tabellenansicht <span style="color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0;">(Spaltenreihenfolge wie in der Original-Excel)</span></h2>
+      <p class="excel-note">Nur Lesen – zum Ändern von Werten bitte in der Dashboard-Ansicht auf „✎ Bearbeiten“ gehen. Kopfzeile und erste Spalte bleiben beim Scrollen stehen, genau wie die eingefrorenen Bereiche in der Excel-Datei.</p>
+      <div class="excel-scroll">
+        <table class="excel-table" id="excel-table"></table>
+      </div>
+    </section>
+  </div>
+
+  <div class="gf-modal-overlay hidden" id="gf-login-modal">
+    <div class="gf-login-box-wrap">
+      <button class="gf-login-close" id="gf-login-close" type="button" title="Schließen">✕</button>
+      <div class="gf-login-box" id="gf-login-box">
+        <h2>🔒 Geschäftsführung</h2>
+        <p class="section-note">Dieser Bereich ist ausschließlich für die Geschäftsführung. Er erfordert eine Anmeldung – ohne gültigen Login sind die Daten auch über die Datenbank nicht einsehbar.</p>
+        <form class="gf-login-form" id="gf-login-form">
+          <label class="edit-field"><span>E-Mail</span><input type="email" id="gf-email" autocomplete="username" required></label>
+          <label class="edit-field"><span>Passwort</span><input type="password" id="gf-password" autocomplete="current-password" required></label>
+          <button class="btn-primary" type="submit" id="gf-login-submit">Anmelden</button>
+          <p class="gf-login-error" id="gf-login-error"></p>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <footer class="legend">
+    <p><b>Ampel-Checklisten</b> (u.a. Bestandsunterlagen, Objektidee, 400er Liste, LZK, Grundleitungen, Tauwasser-Punkte, Einrichtungsplan, Statik Wärmepumpe/RLT-Gerät, Durchbruchsangaben, Elektroliste, Deckenspiegel je Bereich, KG-400-Koordination, Kick-Off Baustelle, Spalte&nbsp;H ohne Titel): 1 = offen/kritisch, 2 = in Bearbeitung, 3 = erledigt – jeweils nach der Ampel-Symbolik aus der Originaldatei. Leer = noch nicht begonnen.</p>
+    <p><b>„*“ hinter einem Termin</b> markiert Zellen, die in der Originaldatei blau hinterlegt waren (vermutlich vorläufige/zu prüfende Termine statt bestätigter Termine – bitte gegenprüfen).</p>
+    <p><b>Offene Fragen an das Team:</b> Wofür stehen die Kürzel „LZK“ (Spalte J) und „LKZ“ (Spalte O) genau? Und wozu dient die Spalte zwischen „Kick-Off“ und „400er Liste“, die in der Vorlage keinen Titel trägt (hier als „Zusatzcheck Spalte H“ bezeichnet)? Eine kurze Antwort hilft, den Report inhaltlich zu schärfen.</p>
+  </footer>
+
+</div>
+
+<script>
+const SUPABASE_URL = "https://beszfzvxtfwdzimixdbo.supabase.co";
+const SUPABASE_KEY = "sb_publishable_onY7q5GNCGOxkEuzEOySDA_XyIqR6Rw";
+const TABLE = "kaufland_status";
+const REST = `${SUPABASE_URL}/rest/v1/${TABLE}`;
+const PROTO_REST = `${SUPABASE_URL}/rest/v1/protokolle`;
+const ORDNER_REST = `${SUPABASE_URL}/rest/v1/ordner`;
+const GF_REST = `${SUPABASE_URL}/rest/v1/gf_themen`;
+const GF_PROJEKT_NOTIZEN_REST = `${SUPABASE_URL}/rest/v1/gf_projekt_notizen`;
+const TERMINPLAN_REST = `${SUPABASE_URL}/rest/v1/projekt_terminplan`;
+const EINGANG_REST = `${SUPABASE_URL}/rest/v1/projekt_eingang`;
+const KONTAKTE_REST = `${SUPABASE_URL}/rest/v1/kontakte`;
+const AP_REST = `${SUPABASE_URL}/rest/v1/projekt_ansprechpartner`;
+const HEADERS = {
+  apikey: SUPABASE_KEY,
+  Authorization: `Bearer ${SUPABASE_KEY}`,
+  "Content-Type": "application/json",
+};
+
+let DATA = [];
+let PROTOKOLLE = [];
+let ORDNER = [];
+let TERMINPLAN = {}; // project-id -> {filename, tasks, updated_at}, aus MS-Project-XML-Export hochgeladen
+let EINGANG = {}; // project-id -> [ {id, betreff, link, link_typ, erfasst_von, ampel, notiz, pos, created_at}, ... ]
+let KONTAKTE_BY_ID = {}; // kontakt-id -> {id, name, firma, email, telefon} - zentrale, projektübergreifende Kontaktliste
+let ANSPRECHPARTNER = {}; // project-id -> [ {id, projekt_id, kontakt_id, gewerk, pos}, ... ]
+let expandedId = null;
+let editingId = null;
+
+// ---------- GF-Bereich (Geschäftsführung) ----------
+// Eigener, passwortgeschützter Bereich: Login über Supabase-Auth, die Tabelle gf_themen
+// ist per Datenbankregel (RLS) NUR für angemeldete Nutzer sichtbar - auch direkt über die
+// Datenbank-API, nicht nur in dieser Oberfläche.
+let supabaseAuth = null;
+try {
+  if (window.supabase && window.supabase.createClient) {
+    supabaseAuth = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: true, storage: window.sessionStorage, autoRefreshToken: true },
+    });
+  }
+} catch (err) {
+  console.error("Supabase-Auth konnte nicht initialisiert werden:", err);
+}
+let gfSession = null;
+let GF_THEMEN = [];
+let GF_PROJEKT_NOTIZEN = {}; // project-id -> {notiz,auftragswert,kosten,marge,risiko}, nur nach Login geladen (echte RLS)
+let gfLoading = false;
+
+// ---------- INNOTECH-ToDos aus der Protokoll-App ----------
+// Projektnummer-Konvention: Kaufland-Projekt "37 Naumburg ..." -> Protokoll-Ordner "50337 ..."
+// (bestätigt anhand der bestehenden Protokoll-Ordner für Naumburg/37, Mühlhausen/39, Döbeln/41, Borna/44, Taucha/47, Arnstadt/48)
+const TODO_STATUSES = ["offen", "Info", "läuft", "Festlegung"]; // alles außer "erledigt" zählt als aktueller Punkt
+
+// Eigene ToDos je Projekt (unabhängig von den Protokollen) – strukturierte Liste statt Freitext
+const OWN_TODO_STATUSES = ["offen", "läuft", "Festlegung", "erledigt"];
+function newOwnTodoId() {
+  return "todo-" + Date.now() + "-" + Math.floor(Math.random() * 100000);
+}
+
+function kaufNr(p) {
+  // Fallback für ältere Kaufland-Datensätze ohne explizites "projektnummer"-Feld:
+  // "37 Naumburg ..." -> Protokoll-Ordner "50337 ..."
+  const m = (p.projekt || "").match(/^(\d{1,3})\b/);
+  if (!m) return null;
+  return "503" + m[1].padStart(2, "0");
+}
+
+function ordnerForProject(p) {
+  const nr = (p.projektnummer || "").trim() || kaufNr(p);
+  if (!nr) return null;
+  return ORDNER.find(o => (o.name || "").trim().startsWith(nr));
+}
+
+function protoSortKey(pr) {
+  const datum = (pr.data && pr.data.meta && pr.data.meta.datum) || "";
+  const savedAt = (pr.data && pr.data.meta && pr.data.meta.savedAt) || "";
+  return datum + "T" + savedAt; // lexikographisch sortierbar: erst Datum, dann Speicherzeitpunkt
+}
+
+// Pro Besprechungstyp (meta.typ) nur das jeweils letzte/neueste Protokoll behalten –
+// ältere Protokolle desselben Typs können durch die neueren überholt sein.
+function latestProtokolleByType(protos) {
+  const byType = {};
+  protos.forEach(pr => {
+    const typ = (pr.data && pr.data.meta && pr.data.meta.typ) || "";
+    const existing = byType[typ];
+    if (!existing || protoSortKey(pr) > protoSortKey(existing)) {
+      byType[typ] = pr;
+    }
+  });
+  return Object.values(byType);
+}
+
+function innotechTodosForProject(p) {
+  const ordner = ordnerForProject(p);
+  if (!ordner) return [];
+  const allProtos = PROTOKOLLE.filter(pr => (pr.data && pr.data.meta && pr.data.meta.ordner_id) === ordner.id);
+  const protos = latestProtokolleByType(allProtos);
+  const items = [];
+  protos.forEach(pr => {
+    const sections = (pr.data && pr.data.data) || {};
+    const labelByKey = {};
+    ((pr.data && pr.data.sections) || []).forEach(s => { labelByKey[s.key] = s.label; });
+    Object.entries(sections).forEach(([key, arr]) => {
+      (arr || []).forEach(it => {
+        const status = (it.status || "").trim();
+        const verantwortlich = it.verantwortlich || "";
+        if (!/innotech/i.test(verantwortlich)) return;
+        if (!TODO_STATUSES.includes(status)) return;
+        items.push({
+          titel: it.titel || labelByKey[key] || "(ohne Titel)",
+          inhalt: it.inhalt || "",
+          status,
+          termin: it.termin || "",
+          verantwortlich,
+          section: labelByKey[key] || key,
+          protoNr: (pr.data && pr.data.meta && pr.data.meta.nr) || "",
+          protoDatum: (pr.data && pr.data.meta && pr.data.meta.datum) || "",
+        });
+      });
+    });
+  });
+  items.sort((a, b) => (b.protoDatum || "").localeCompare(a.protoDatum || ""));
+  return items;
+}
+
+const FIELD_LABELS = {
+  projektnummer: "Projektnummer", auftraggeber: "Auftraggeber",
+  pl_innotech: "PL Innotech", partner: "Partner", pl_kaufland: "PL Kunde",
+  bestandsunterlagen: "Bestandsunterlagen", objektidee: "Objektidee im Grundriss",
+  kickoff_init: "Kick-Off (Initiierung)", h_extra: "Zusatzcheck (Spalte H)",
+  liste400: "400er Liste", lzk: "LZK", lph2: "LPH 2", nachforderung: "Nachforderung",
+  lph3: "LPH 3", kostenberechnung: "Kostenberechnung", lkz: "LKZ", lph56: "LPH 5-6",
+  versand: "Versand", angebotsruecklauf: "Angebotsrücklauf", auswertung: "Auswertung",
+  techn_biet: "Techn. Bietergespräche", wirtsch_vergaben: "Wirtsch. Vergaben", auftrag: "Auftrag",
+  aktuelle_lph: "Aktuelle LPH", tauwasser: "Abstimmung Tauwasseranschlüsse", durchbruch: "Durchbruchsangaben",
+  elektroliste: "Elektroliste", kg400koord: "KG 400 Koordination", baubeginn: "Baubeginn",
+  kickoff_bau: "Kick-Off (Baustelle)", bauende: "Bauende",
+  grundleitungen: "Grundleitungen", bestand_tauwasser: "Bestandsaufnahme Tauwasser",
+  neue_tauwasser_kuehlmoebel: "Neue Tauwasseranschlüsse Kühlmöbel", einrichtungsplan: "Einrichtungsplan",
+  statik_waermepumpe: "Statik Wärmepumpe", statik_rlt: "Statik RLT-Gerät",
+  deckenspiegel_backshop: "Deckenspiegel Backshop", deckenspiegel_kundenwc: "Deckenspiegel Kunden-WC",
+  deckenspiegel_personal: "Deckenspiegel Personal", deckenspiegel_wareneingang: "Deckenspiegel Wareneingangsbüro",
+  notizen: "Notizen / ToDos"
+};
+const MILESTONE_ORDER = ["kickoff_init","lph2","nachforderung","lph3","kostenberechnung","lph56","versand","angebotsruecklauf","auswertung","techn_biet","wirtsch_vergaben","auftrag","baubeginn","bauende"];
+const CHECKLIST_ORDER = ["bestandsunterlagen","objektidee","h_extra","liste400","lzk",
+  "grundleitungen","bestand_tauwasser","neue_tauwasser_kuehlmoebel","einrichtungsplan","statik_waermepumpe","statik_rlt",
+  "tauwasser","durchbruch","elektroliste",
+  "deckenspiegel_backshop","deckenspiegel_kundenwc","deckenspiegel_personal","deckenspiegel_wareneingang",
+  "kg400koord","kickoff_bau"];
+const TODAY = new Date(new Date().toDateString());
+
+function projNum(p) {
+  const m = /^(\d+)/.exec(p.projekt || "");
+  return m ? parseInt(m[1], 10) : Infinity;
+}
+function fmtDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso + "T00:00:00");
+  if (isNaN(d)) return null;
+  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+function statusChip(value, label) {
+  const wrap = document.createElement("span");
+  if (value === null || value === undefined || value === "") {
+    wrap.className = "chip chip-muted";
+    wrap.innerHTML = `<span class="chip-dot"></span>${label}: –`;
+  } else if (value >= 3) {
+    wrap.className = "chip chip-good";
+    wrap.innerHTML = `<span class="chip-dot"></span>${label}: erledigt`;
+  } else if (value === 2) {
+    wrap.className = "chip chip-warning";
+    wrap.innerHTML = `<span class="chip-dot"></span>${label}: in Bearbeitung`;
+  } else {
+    wrap.className = "chip chip-critical";
+    wrap.innerHTML = `<span class="chip-dot"></span>${label}: offen`;
+  }
+  return wrap;
+}
+function protoStatusChip(status) {
+  const span = document.createElement("span");
+  const clsByStatus = {
+    "offen": "chip-critical",
+    "läuft": "chip-warning",
+    "Festlegung": "chip-good",
+    "erledigt": "chip-good",
+    "Info": "chip-muted",
+  };
+  span.className = "chip " + (clsByStatus[status] || "chip-muted");
+  span.innerHTML = `<span class="chip-dot"></span>${status}`;
+  return span;
+}
+function lphBadge(v) {
+  const span = document.createElement("span");
+  if (v === null || v === undefined) {
+    span.className = "lph-badge none";
+    span.textContent = "–";
+    return span;
+  }
+  if (v === "Beratungsleistung") {
+    span.className = "lph-badge beratung";
+    span.textContent = "Beratungsleistung";
+    return span;
+  }
+  const t = Math.max(0, Math.min(1, (v - 1) / 8));
+  const light = [0xcd, 0xe2, 0xfb], dark = [0x0d, 0x36, 0x6b];
+  const c = light.map((l, i) => Math.round(l + (dark[i] - l) * t));
+  span.className = "lph-badge";
+  span.style.background = `rgb(${c[0]},${c[1]},${c[2]})`;
+  span.style.color = t > 0.45 ? "#fff" : "#0b0b0b";
+  span.textContent = "LPH " + v;
+  return span;
+}
+
+function computeGaps(p) {
+  const gaps = [];
+  const hasAnyData = MILESTONE_ORDER.concat(CHECKLIST_ORDER).some(k => p[k] !== null && p[k] !== undefined && p[k] !== "") || p.pl_innotech || p.pl_kaufland || p.partner || (p.aktuelle_lph !== null && p.aktuelle_lph !== undefined);
+  if (!hasAnyData) {
+    gaps.push("Projekt komplett unbearbeitet – noch keine Daten erfasst.");
+    return gaps;
+  }
+  if (!p.pl_innotech && !p.pl_kaufland) gaps.push("Kein Projektleiter zugeordnet (weder PL Innotech noch PL Kunde).");
+  if (p.aktuelle_lph === null || p.aktuelle_lph === undefined) gaps.push("„Aktuelle LPH“ fehlt, obwohl bereits Termine/Checklisten-Einträge vorhanden sind.");
+  if (p.kickoff_init === "?") gaps.push("Kick-Off-Termin (Initiierung) ist mit „?“ markiert – Termin unklar.");
+  if (p.baubeginn && !p.bauende) gaps.push("Baubeginn ist gesetzt, Bauende aber noch offen.");
+  if (p._flagged_red && p._flagged_red.length) gaps.push(`Termin(e) im Original rot markiert: ${p._flagged_red.map(k => FIELD_LABELS[k] || k).join(", ")} – wirkt kritisch, bitte gegenprüfen.`);
+  return gaps;
+}
+
+// ---------- Data loading & saving ----------
+async function loadProtokollData() {
+  // Best-effort: die INNOTECH-ToDos aus der Protokoll-App sind eine Zusatzinfo.
+  // Schlägt das fehl (z.B. Netzwerk), bleibt das Dashboard trotzdem nutzbar.
+  try {
+    const [ordnerRes, protoRes] = await Promise.all([
+      fetch(`${ORDNER_REST}?select=id,name`, { headers: HEADERS }),
+      fetch(`${PROTO_REST}?select=id,data,updated_at`, { headers: HEADERS }),
+    ]);
+    ORDNER = ordnerRes.ok ? await ordnerRes.json() : [];
+    PROTOKOLLE = protoRes.ok ? await protoRes.json() : [];
+  } catch (err) {
+    ORDNER = [];
+    PROTOKOLLE = [];
+  }
+}
+
+async function loadTerminplaene() {
+  // Best-effort: hochgeladene Terminpläne (aus MS-Project-XML) sind eine Zusatzinfo je Projekt.
+  try {
+    const res = await fetch(`${TERMINPLAN_REST}?select=id,filename,tasks,updated_at`, { headers: HEADERS });
+    if (!res.ok) { TERMINPLAN = {}; return; }
+    const rows = await res.json();
+    TERMINPLAN = {};
+    rows.forEach(r => { TERMINPLAN[r.id] = r; });
+  } catch (err) {
+    TERMINPLAN = {};
+  }
+}
+
+async function loadEingaenge() {
+  // Best-effort: Eingangskontrolle-Karten je Projekt.
+  try {
+    const res = await fetch(`${EINGANG_REST}?select=*&order=pos.asc,created_at.asc`, { headers: HEADERS });
+    if (!res.ok) { EINGANG = {}; return; }
+    const rows = await res.json();
+    EINGANG = {};
+    rows.forEach(r => {
+      if (!EINGANG[r.projekt_id]) EINGANG[r.projekt_id] = [];
+      EINGANG[r.projekt_id].push(r);
+    });
+  } catch (err) {
+    EINGANG = {};
+  }
+}
+
+async function loadAnsprechpartner() {
+  // Best-effort: zentrale Kontaktliste + Zuordnungen (Projekt x Kontakt x Gewerk) je Projekt.
+  try {
+    const [kRes, aRes] = await Promise.all([
+      fetch(`${KONTAKTE_REST}?select=*`, { headers: HEADERS }),
+      fetch(`${AP_REST}?select=*&order=pos.asc,created_at.asc`, { headers: HEADERS }),
+    ]);
+    KONTAKTE_BY_ID = {};
+    if (kRes.ok) { (await kRes.json()).forEach(k => { KONTAKTE_BY_ID[k.id] = k; }); }
+    ANSPRECHPARTNER = {};
+    if (aRes.ok) {
+      (await aRes.json()).forEach(a => {
+        if (!ANSPRECHPARTNER[a.projekt_id]) ANSPRECHPARTNER[a.projekt_id] = [];
+        ANSPRECHPARTNER[a.projekt_id].push(a);
+      });
+    }
+  } catch (err) {
+    KONTAKTE_BY_ID = {};
+    ANSPRECHPARTNER = {};
+  }
+}
+
+async function loadData() {
+  const statusEl = document.getElementById("load-status");
+  statusEl.textContent = "Lade Daten aus Supabase …";
+  statusEl.classList.remove("error");
+  try {
+    const res = await fetch(`${REST}?select=id,data,updated_at`, { headers: HEADERS });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+    DATA = rows.map(r => ({ ...r.data, _id: r.id, _updated_at: r.updated_at }));
+    DATA.sort((a, b) => projNum(a) - projNum(b) || (a.projekt || "").localeCompare(b.projekt || ""));
+    await Promise.all([loadProtokollData(), loadTerminplaene(), loadEingaenge(), loadAnsprechpartner()]);
+    statusEl.textContent = "";
+    renderAll();
+  } catch (err) {
+    statusEl.textContent = "Daten konnten nicht geladen werden (" + err.message + "). Neu laden mit F5.";
+    statusEl.classList.add("error");
+  }
+}
+
+// ---------- Terminplan (aus MS-Project-XML-Export) ----------
+function parseMSProjectXML(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, "text/xml");
+  if (doc.querySelector("parsererror")) {
+    throw new Error("Datei ist kein gültiges XML.");
+  }
+  const taskNodes = Array.from(doc.getElementsByTagName("Task"));
+  if (!taskNodes.length) {
+    throw new Error('Keine <Task>-Elemente gefunden – bitte in MS Project über "Datei → Speichern unter" als Dateityp "XML" exportieren.');
+  }
+  const g = (node, tag) => {
+    const el = node.getElementsByTagName(tag)[0];
+    return el ? el.textContent.trim() : "";
+  };
+
+  // Ressourcen (UID -> Name) und Zuordnungen (TaskUID -> [ResourceName, ...]),
+  // damit die Ressourcennamen wie im MS-Project-Gantt neben dem Balken erscheinen.
+  const resourceNamesByUid = {};
+  Array.from(doc.getElementsByTagName("Resource")).forEach(r => {
+    const uid = g(r, "UID");
+    const name = g(r, "Name");
+    if (uid && name) resourceNamesByUid[uid] = name;
+  });
+  const resourcesByTaskUid = {};
+  Array.from(doc.getElementsByTagName("Assignment")).forEach(a => {
+    const taskUid = g(a, "TaskUID");
+    const name = resourceNamesByUid[g(a, "ResourceUID")];
+    if (!taskUid || !name) return;
+    (resourcesByTaskUid[taskUid] = resourcesByTaskUid[taskUid] || []).push(name);
+  });
+
+  const tasks = taskNodes.map(node => {
+    const uid = g(node, "UID");
+    const start = g(node, "Start").slice(0, 10);
+    const finish = g(node, "Finish").slice(0, 10);
+    return {
+      uid,
+      name: g(node, "Name") || "(ohne Namen)",
+      start, finish,
+      percentComplete: parseInt(g(node, "PercentComplete") || "0", 10) || 0,
+      outlineLevel: parseInt(g(node, "OutlineLevel") || "1", 10) || 1,
+      summary: g(node, "Summary") === "1",
+      milestone: g(node, "Milestone") === "1",
+      resources: (resourcesByTaskUid[uid] || []).join(", "),
+    };
+  }).filter(t =>
+    t.uid !== "0" &&
+    t.start && t.finish &&
+    !isNaN(new Date(t.start).getTime()) &&
+    !isNaN(new Date(t.finish).getTime())
+  );
+  return tasks;
+}
+
+function fmtDateDe(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  if (!y || !m || !d) return "";
+  return `${d}.${m}.${y}`;
+}
+
+function buildGanttChart(tasks) {
+  const NAME_W = 260, DATE_W = 72; // px, muss zu .gantt-col-name / .gantt-col-date passen
+  const OFFSET_LEFT = NAME_W + DATE_W * 2;
+  const starts = tasks.map(t => new Date(t.start).getTime());
+  const finishes = tasks.map(t => new Date(t.finish).getTime());
+  const minT = Math.min(...starts);
+  const maxT = Math.max(...finishes);
+  const span = Math.max(maxT - minT, 24 * 3600 * 1000);
+
+  const wrap = document.createElement("div");
+  wrap.className = "gantt-wrap";
+  const chart = document.createElement("div");
+  chart.className = "gantt-chart";
+
+  const headRow = document.createElement("div");
+  headRow.className = "gantt-row gantt-head-row";
+  headRow.innerHTML = `
+    <div class="gantt-col-name gantt-head-cell">Vorgangsname</div>
+    <div class="gantt-col-date gantt-head-cell">Anfang</div>
+    <div class="gantt-col-date gantt-head-cell">Ende</div>
+    <div class="gantt-track"></div>
+  `;
+  chart.appendChild(headRow);
+
+  const timelineWrap = document.createElement("div");
+  timelineWrap.className = "gantt-timeline";
+
+  const monthRow = document.createElement("div");
+  monthRow.className = "gantt-month-row";
+  monthRow.style.marginLeft = OFFSET_LEFT + "px";
+  const cursor = new Date(minT);
+  cursor.setDate(1);
+  while (cursor.getTime() <= maxT) {
+    const left = Math.max(((cursor.getTime() - minT) / span) * 100, 0);
+    const el = document.createElement("div");
+    el.className = "gantt-month-label";
+    el.style.left = left + "%";
+    el.textContent = cursor.toLocaleDateString("de-DE", { month: "short", year: "2-digit" });
+    monthRow.appendChild(el);
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  timelineWrap.appendChild(monthRow);
+
+  const body = document.createElement("div");
+  body.className = "gantt-body";
+  tasks.forEach(t => {
+    const row = document.createElement("div");
+    row.className = "gantt-row" + (t.summary ? " is-summary" : "");
+
+    const nameCell = document.createElement("div");
+    nameCell.className = "gantt-col-name";
+    nameCell.title = t.name;
+    nameCell.style.paddingLeft = (8 + Math.max(t.outlineLevel - 1, 0) * 14) + "px";
+    nameCell.textContent = t.name;
+    row.appendChild(nameCell);
+
+    const startCell = document.createElement("div");
+    startCell.className = "gantt-col-date";
+    startCell.textContent = fmtDateDe(t.start);
+    row.appendChild(startCell);
+
+    const endCell = document.createElement("div");
+    endCell.className = "gantt-col-date";
+    endCell.textContent = fmtDateDe(t.finish);
+    row.appendChild(endCell);
+
+    const track = document.createElement("div");
+    track.className = "gantt-track";
+    const s = new Date(t.start).getTime();
+    const f = new Date(t.finish).getTime();
+    const left = ((s - minT) / span) * 100;
+    if (t.milestone) {
+      const dia = document.createElement("div");
+      dia.className = "gantt-milestone";
+      dia.style.left = left + "%";
+      dia.title = `${t.name} – ${fmtDateDe(t.start)}${t.resources ? "\n" + t.resources : ""}`;
+      track.appendChild(dia);
+      if (t.resources) {
+        const lbl = document.createElement("div");
+        lbl.className = "gantt-bar-label";
+        lbl.style.left = `calc(${left}% + 10px)`;
+        lbl.textContent = t.resources;
+        track.appendChild(lbl);
+      }
+    } else {
+      const width = Math.max(((f - s) / span) * 100, 0.3);
+      const bar = document.createElement("div");
+      bar.className = "gantt-bar";
+      bar.style.left = left + "%";
+      bar.style.width = width + "%";
+      bar.title = `${t.name}\n${fmtDateDe(t.start)} – ${fmtDateDe(t.finish)} (${t.percentComplete}% erledigt)${t.resources ? "\n" + t.resources : ""}`;
+      const fill = document.createElement("div");
+      fill.className = "gantt-bar-fill";
+      fill.style.width = Math.min(Math.max(t.percentComplete, 0), 100) + "%";
+      bar.appendChild(fill);
+      track.appendChild(bar);
+      if (t.resources) {
+        const lbl = document.createElement("div");
+        lbl.className = "gantt-bar-label";
+        lbl.style.left = `calc(${left + width}% + 6px)`;
+        lbl.textContent = t.resources;
+        track.appendChild(lbl);
+      }
+    }
+    row.appendChild(track);
+    body.appendChild(row);
+  });
+  timelineWrap.appendChild(body);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayT = today.getTime();
+  if (todayT >= minT && todayT <= maxT) {
+    const frac = (todayT - minT) / span;
+    const leftExpr = `calc(${OFFSET_LEFT}px + (100% - ${OFFSET_LEFT}px) * ${frac})`;
+    const line = document.createElement("div");
+    line.className = "gantt-today-line";
+    line.style.left = leftExpr;
+    timelineWrap.appendChild(line);
+    const label = document.createElement("div");
+    label.className = "gantt-today-label";
+    label.style.left = leftExpr;
+    label.textContent = "Heute " + fmtDateDe(today.toISOString().slice(0, 10));
+    timelineWrap.appendChild(label);
+  }
+
+  chart.appendChild(timelineWrap);
+  wrap.appendChild(chart);
+  return wrap;
+}
+
+async function handleTerminplanUpload(projectId, file) {
+  let text;
+  try {
+    text = await file.text();
+  } catch (err) {
+    alert("Datei konnte nicht gelesen werden.");
+    return;
+  }
+  let tasks;
+  try {
+    tasks = parseMSProjectXML(text);
+  } catch (err) {
+    alert("Terminplan konnte nicht gelesen werden: " + err.message);
+    return;
+  }
+  if (!tasks.length) {
+    alert('Keine Vorgänge gefunden. Bitte in MS Project über "Datei → Speichern unter" als Dateityp "XML" exportieren (nicht als .mpp, PDF oder Bild) und diese Datei hochladen.');
+    return;
+  }
+  const payload = { id: projectId, filename: file.name, tasks, updated_at: new Date().toISOString() };
+  try {
+    const res = await fetch(TERMINPLAN_REST, {
+      method: "POST",
+      headers: { ...HEADERS, Prefer: "resolution=merge-duplicates" },
+      body: JSON.stringify([payload]),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    TERMINPLAN[projectId] = payload;
+  } catch (err) {
+    alert("Speichern fehlgeschlagen: " + err.message);
+    return;
+  } finally {
+    renderTable();
+  }
+}
+
+function buildTerminplanBlock(p) {
+  const block = document.createElement("div");
+  block.className = "detail-block terminplan-block";
+  const tp = TERMINPLAN[p._id];
+
+  const header = document.createElement("div");
+  header.className = "terminplan-header";
+  const h4 = document.createElement("h4");
+  h4.textContent = "📅 Terminplan";
+  header.appendChild(h4);
+
+  const right = document.createElement("div");
+  right.className = "terminplan-header-right";
+  if (tp) {
+    const meta = document.createElement("span");
+    meta.className = "terminplan-meta";
+    meta.textContent = `${tp.filename || "Terminplan"} · aktualisiert ${fmtDateDe(tp.updated_at) || ""}`;
+    right.appendChild(meta);
+  }
+  const uploadLabel = document.createElement("label");
+  uploadLabel.className = "terminplan-upload-btn";
+  uploadLabel.textContent = tp ? "🔄 Ersetzen (XML)" : "⬆ Terminplan hochladen (XML)";
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = ".xml";
+  fileInput.style.display = "none";
+  fileInput.addEventListener("click", e => e.stopPropagation());
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const prevText = uploadLabel.textContent;
+    uploadLabel.textContent = "Lade …";
+    await handleTerminplanUpload(p._id, file);
+  });
+  uploadLabel.addEventListener("click", e => e.stopPropagation());
+  uploadLabel.appendChild(fileInput);
+  right.appendChild(uploadLabel);
+  header.appendChild(right);
+  block.appendChild(header);
+
+  if (!tp || !tp.tasks || !tp.tasks.length) {
+    const empty = document.createElement("div");
+    empty.className = "terminplan-empty";
+    empty.textContent = 'Noch kein Terminplan hinterlegt. Aus MS Project exportieren (Datei → Speichern unter → Dateityp "XML") und hier hochladen.';
+    block.appendChild(empty);
+  } else {
+    block.appendChild(buildGanttChart(tp.tasks));
+  }
+  return block;
+}
+
+// ---------- Eingangskontrolle (Kanban je Projekt) ----------
+const EINGANG_SPALTEN = [
+  { key: "grau", label: "Neu / ungeprüft" },
+  { key: "rot", label: "Dringend" },
+  { key: "gelb", label: "Geprüft – Aufgabe offen" },
+  { key: "gruen", label: "Geprüft – erledigt" },
+];
+
+function eingangInitialen(name) {
+  const n = (name || "").trim();
+  if (!n) return "–";
+  const parts = n.split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function fmtDateDeShort(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+async function createEingang(projektId, { betreff, link, link_typ, erfasst_von }) {
+  const list = EINGANG[projektId] || [];
+  const pos = list.filter(e => e.ampel === "grau").length;
+  const payload = {
+    projekt_id: projektId, betreff, link: link || null, link_typ: link ? link_typ : null,
+    erfasst_von: erfasst_von || null, ampel: "grau", pos,
+  };
+  const res = await fetch(EINGANG_REST, {
+    method: "POST",
+    headers: { ...HEADERS, Prefer: "return=representation" },
+    body: JSON.stringify([payload]),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const [row] = await res.json();
+  if (!EINGANG[projektId]) EINGANG[projektId] = [];
+  EINGANG[projektId].push(row);
+}
+
+async function updateEingangAmpel(id, projektId, ampel, pos) {
+  const res = await fetch(`${EINGANG_REST}?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { ...HEADERS, Prefer: "return=representation" },
+    body: JSON.stringify({ ampel, pos, updated_at: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const [row] = await res.json();
+  const list = EINGANG[projektId] || [];
+  const idx = list.findIndex(e => e.id === id);
+  if (idx !== -1 && row) list[idx] = row;
+}
+
+async function updateEingangNotiz(id, projektId, notiz) {
+  const res = await fetch(`${EINGANG_REST}?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { ...HEADERS, Prefer: "return=representation" },
+    body: JSON.stringify({ notiz, updated_at: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const [row] = await res.json();
+  const list = EINGANG[projektId] || [];
+  const idx = list.findIndex(e => e.id === id);
+  if (idx !== -1 && row) list[idx] = row;
+}
+
+async function deleteEingang(id, projektId) {
+  const res = await fetch(`${EINGANG_REST}?id=eq.${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: HEADERS,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  EINGANG[projektId] = (EINGANG[projektId] || []).filter(e => e.id !== id);
+}
+
+function buildEingangCard(item, projektId) {
+  const card = document.createElement("div");
+  card.className = "eingang-card" + (item.ampel !== "grau" ? " c-" + item.ampel : "");
+  card.draggable = true;
+  card.dataset.id = item.id;
+
+  card.addEventListener("dragstart", e => {
+    card.classList.add("dragging");
+    e.dataTransfer.setData("text/plain", item.id);
+    e.dataTransfer.effectAllowed = "move";
+  });
+  card.addEventListener("dragend", () => card.classList.remove("dragging"));
+
+  const top = document.createElement("div");
+  top.className = "eingang-card-top";
+  const title = document.createElement("div");
+  title.className = "eingang-card-title";
+  title.textContent = item.betreff;
+  top.appendChild(title);
+  const removeBtn = document.createElement("button");
+  removeBtn.className = "eingang-card-remove";
+  removeBtn.type = "button";
+  removeBtn.textContent = "✕";
+  removeBtn.title = "Eintrag entfernen";
+  removeBtn.addEventListener("click", async e => {
+    e.stopPropagation();
+    if (!confirm("Diesen Eingang wirklich entfernen?")) return;
+    try {
+      await deleteEingang(item.id, projektId);
+    } catch (err) {
+      alert("Löschen fehlgeschlagen: " + err.message);
+    }
+    renderTable();
+  });
+  top.appendChild(removeBtn);
+  card.appendChild(top);
+
+  const meta = document.createElement("div");
+  meta.className = "eingang-card-meta";
+  meta.textContent = "Erfasst von " + (item.erfasst_von || "unbekannt");
+  card.appendChild(meta);
+
+  const notiz = document.createElement("div");
+  notiz.className = "eingang-card-notiz";
+  notiz.contentEditable = "true";
+  notiz.textContent = item.notiz || "";
+  notiz.addEventListener("blur", async () => {
+    const val = notiz.textContent.trim();
+    if (val === (item.notiz || "")) return;
+    try {
+      await updateEingangNotiz(item.id, projektId, val);
+    } catch (err) {
+      alert("Speichern fehlgeschlagen: " + err.message);
+    }
+  });
+  card.appendChild(notiz);
+
+  if (item.link) {
+    const chip = document.createElement("a");
+    chip.className = "eingang-link-chip" + (item.link_typ === "lokal" ? " local" : "");
+    chip.textContent = (item.link_typ === "lokal" ? "📁 " : "🔗 ") + item.link;
+    if (item.link_typ !== "lokal" && /^https?:\/\//i.test(item.link)) {
+      chip.href = item.link;
+      chip.target = "_blank";
+      chip.rel = "noopener";
+    } else {
+      chip.href = "#";
+      chip.addEventListener("click", e => e.preventDefault());
+    }
+    card.appendChild(chip);
+  }
+
+  const foot = document.createElement("div");
+  foot.className = "eingang-card-foot";
+  const avatar = document.createElement("span");
+  avatar.className = "eingang-avatar";
+  avatar.textContent = eingangInitialen(item.erfasst_von);
+  foot.appendChild(avatar);
+  const date = document.createElement("span");
+  date.className = "eingang-card-date";
+  date.textContent = fmtDateDeShort(item.created_at);
+  foot.appendChild(date);
+  card.appendChild(foot);
+
+  return card;
+}
+
+function buildEingangForm(projektId, onDone) {
+  const form = document.createElement("div");
+  form.className = "eingang-form";
+
+  const betreffInput = document.createElement("input");
+  betreffInput.type = "text";
+  betreffInput.className = "eingang-betreff-input";
+  betreffInput.placeholder = "Betreff / Dateiname *";
+  form.appendChild(betreffInput);
+
+  const row2 = document.createElement("div");
+  row2.className = "eingang-form-row";
+  const linkInput = document.createElement("input");
+  linkInput.type = "text";
+  linkInput.className = "eingang-link-input";
+  linkInput.placeholder = "Link (Cloud-URL oder Ordnerpfad)";
+  row2.appendChild(linkInput);
+  const typSelect = document.createElement("select");
+  typSelect.className = "eingang-typ-select";
+  [["cloud", "🔗 Cloud-Ordner"], ["lokal", "📁 Lokaler Ordner"]].forEach(([v, label]) => {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = label;
+    typSelect.appendChild(opt);
+  });
+  row2.appendChild(typSelect);
+  form.appendChild(row2);
+
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.className = "eingang-name-input";
+  nameInput.placeholder = "Ihr Name / Kürzel";
+  form.appendChild(nameInput);
+
+  const actions = document.createElement("div");
+  actions.className = "eingang-form-actions";
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "eingang-form-cancel";
+  cancelBtn.textContent = "Abbrechen";
+  cancelBtn.addEventListener("click", onDone);
+  actions.appendChild(cancelBtn);
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "eingang-form-save";
+  saveBtn.textContent = "Speichern";
+  saveBtn.addEventListener("click", async () => {
+    const betreff = betreffInput.value.trim();
+    if (!betreff) { betreffInput.focus(); return; }
+    saveBtn.disabled = true;
+    try {
+      await createEingang(projektId, {
+        betreff,
+        link: linkInput.value.trim(),
+        link_typ: typSelect.value,
+        erfasst_von: nameInput.value.trim(),
+      });
+      onDone();
+      renderTable();
+    } catch (err) {
+      alert("Speichern fehlgeschlagen: " + err.message);
+      saveBtn.disabled = false;
+    }
+  });
+  actions.appendChild(saveBtn);
+  form.appendChild(actions);
+
+  return form;
+}
+
+function buildEingangBlock(p) {
+  const block = document.createElement("div");
+  block.className = "detail-block eingang-block";
+  const items = EINGANG[p._id] || [];
+
+  const header = document.createElement("div");
+  header.className = "eingang-header";
+  const left = document.createElement("div");
+  const h4 = document.createElement("h4");
+  h4.textContent = "📥 Eingangskontrolle";
+  left.appendChild(h4);
+  const sub = document.createElement("div");
+  sub.className = "eingang-sub";
+  sub.textContent = "Alle Dateien, die zu diesem Projekt bei uns eingehen. Jede Karte verlinkt auf den Original-Ordner (Cloud oder lokaler Pfad) – die Datei selbst bleibt dort liegen.";
+  left.appendChild(sub);
+  header.appendChild(left);
+
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "eingang-add-btn";
+  addBtn.textContent = "+ Eingang erfassen";
+  header.appendChild(addBtn);
+  block.appendChild(header);
+
+  const kanban = document.createElement("div");
+  kanban.className = "eingang-kanban";
+
+  const formHolder = document.createElement("div");
+  formHolder.className = "eingang-form-holder";
+  addBtn.addEventListener("click", () => {
+    if (formHolder.firstChild) return;
+    formHolder.appendChild(buildEingangForm(p._id, () => { formHolder.innerHTML = ""; }));
+  });
+
+  EINGANG_SPALTEN.forEach(spalte => {
+    const col = document.createElement("div");
+    col.className = "eingang-col eingang-col-" + spalte.key;
+
+    const colHdr = document.createElement("div");
+    colHdr.className = "eingang-col-hdr";
+    const dot = document.createElement("span");
+    dot.className = "eingang-dot";
+    colHdr.appendChild(dot);
+    const label = document.createElement("span");
+    label.textContent = spalte.label;
+    colHdr.appendChild(label);
+    const spalteItems = items.filter(it => it.ampel === spalte.key);
+    const count = document.createElement("span");
+    count.className = "eingang-col-count";
+    count.textContent = String(spalteItems.length);
+    colHdr.appendChild(count);
+    col.appendChild(colHdr);
+
+    const body = document.createElement("div");
+    body.className = "eingang-col-body";
+    body.dataset.ampel = spalte.key;
+
+    if (spalte.key === "grau") body.appendChild(formHolder);
+
+    if (!spalteItems.length) {
+      const empty = document.createElement("div");
+      empty.className = "eingang-empty-slot";
+      empty.textContent = "Karte hierher ziehen";
+      body.appendChild(empty);
+    }
+    spalteItems.forEach(item => body.appendChild(buildEingangCard(item, p._id)));
+
+    body.addEventListener("dragover", e => { e.preventDefault(); body.classList.add("drag-over"); });
+    body.addEventListener("dragleave", () => body.classList.remove("drag-over"));
+    body.addEventListener("drop", async e => {
+      e.preventDefault();
+      body.classList.remove("drag-over");
+      const id = e.dataTransfer.getData("text/plain");
+      if (!id) return;
+      const list = EINGANG[p._id] || [];
+      const item = list.find(it => it.id === id);
+      if (!item || item.ampel === spalte.key) return;
+      const newPos = list.filter(it => it.ampel === spalte.key).length;
+      try {
+        await updateEingangAmpel(id, p._id, spalte.key, newPos);
+      } catch (err) {
+        alert("Status konnte nicht geändert werden: " + err.message);
+      }
+      renderTable();
+    });
+
+    col.appendChild(body);
+    kanban.appendChild(col);
+  });
+
+  block.appendChild(kanban);
+  return block;
+}
+
+// ---------- Ansprechpartner (zentrale Kontaktliste je Gewerk/Projekt) ----------
+const GEWERKE = [
+  { label: "PL INNOTECH", farbe: "#2a78d6" },
+  { label: "PL Kunde", farbe: "#6b7280" },
+  { label: "Bauleitung", farbe: "#0ca30c" },
+  { label: "Architektur", farbe: "#4a32b0" },
+  { label: "Statik", farbe: "#ec835a" },
+  { label: "Elektro", farbe: "#fab219" },
+  { label: "TGA / HLS", farbe: "#7c5cff" },
+  { label: "Sanitär", farbe: "#0aa3a3" },
+  { label: "Brandschutz", farbe: "#d03b3b" },
+  { label: "Fassade", farbe: "#ff6fa5" },
+  { label: "Sonstiges", farbe: "#898781" },
+];
+const AP_AVATAR_PALETTE = ["#2a78d6", "#b0316b", "#9a4a26", "#0d7a0d", "#4a32b0", "#0aa3a3", "#8a5a00", "#6b7280"];
+
+function gewerkFarbe(label) {
+  const g = GEWERKE.find(x => x.label === label);
+  return g ? g.farbe : "#898781";
+}
+
+function avatarFarbe(seed) {
+  const s = String(seed || "");
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+  return AP_AVATAR_PALETTE[hash % AP_AVATAR_PALETTE.length];
+}
+
+function apInitialen(name) {
+  const n = (name || "").trim();
+  if (!n) return "–";
+  const parts = n.split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function parseVCard(text) {
+  const lines = text.split(/\r\n|\n|\r/);
+  let name = "", firma = "", email = "", telefon = "";
+  lines.forEach(rawLine => {
+    const line = rawLine.trim();
+    if (!line) return;
+    const idx = line.indexOf(":");
+    if (idx === -1) return;
+    const rawKey = line.slice(0, idx);
+    const value = line.slice(idx + 1).trim();
+    const key = rawKey.split(";")[0].toUpperCase();
+    if (key === "FN" && !name) {
+      name = value;
+    } else if (key === "N" && !name) {
+      const parts = value.split(";");
+      const combined = [parts[1], parts[0]].filter(Boolean).join(" ").trim();
+      if (combined) name = combined;
+    } else if (key === "ORG" && !firma) {
+      firma = value.split(";")[0];
+    } else if (key === "EMAIL" && !email) {
+      email = value;
+    } else if (key === "TEL" && !telefon) {
+      telefon = value;
+    }
+  });
+  return { name, firma, email, telefon };
+}
+
+async function findOrCreateKontakt({ name, firma, email, telefon }) {
+  const normName = (name || "").trim().toLowerCase();
+  let existing = Object.values(KONTAKTE_BY_ID).find(k => (k.name || "").trim().toLowerCase() === normName);
+  if (existing) {
+    // Zentrale Kontaktliste: fehlende Angaben am bestehenden Kontakt best-effort ergänzen,
+    // ohne bereits vorhandene Werte zu überschreiben.
+    const patch = {};
+    if (!existing.firma && firma) patch.firma = firma.trim();
+    if (!existing.email && email) patch.email = email.trim();
+    if (!existing.telefon && telefon) patch.telefon = telefon.trim();
+    if (Object.keys(patch).length) {
+      try {
+        const res = await fetch(`${KONTAKTE_REST}?id=eq.${encodeURIComponent(existing.id)}`, {
+          method: "PATCH",
+          headers: { ...HEADERS, Prefer: "return=representation" },
+          body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
+        });
+        if (res.ok) {
+          const [row] = await res.json();
+          if (row) { KONTAKTE_BY_ID[row.id] = row; existing = row; }
+        }
+      } catch (err) {
+        // Anreicherung ist best-effort - die Zuordnung funktioniert auch ohne.
+      }
+    }
+    return existing;
+  }
+  const payload = { name: name.trim(), firma: (firma || "").trim() || null, email: (email || "").trim() || null, telefon: (telefon || "").trim() || null };
+  const res = await fetch(KONTAKTE_REST, {
+    method: "POST",
+    headers: { ...HEADERS, Prefer: "return=representation" },
+    body: JSON.stringify([payload]),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const [row] = await res.json();
+  KONTAKTE_BY_ID[row.id] = row;
+  return row;
+}
+
+async function createAnsprechpartner(projektId, kontaktInput, gewerk) {
+  const kontakt = await findOrCreateKontakt(kontaktInput);
+  const list = ANSPRECHPARTNER[projektId] || [];
+  if (list.some(a => a.kontakt_id === kontakt.id && a.gewerk === gewerk)) {
+    throw new Error("Dieser Kontakt ist für dieses Gewerk hier bereits eingetragen.");
+  }
+  const payload = { projekt_id: projektId, kontakt_id: kontakt.id, gewerk, pos: list.length };
+  const res = await fetch(AP_REST, {
+    method: "POST",
+    headers: { ...HEADERS, Prefer: "return=representation" },
+    body: JSON.stringify([payload]),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const [row] = await res.json();
+  if (!ANSPRECHPARTNER[projektId]) ANSPRECHPARTNER[projektId] = [];
+  ANSPRECHPARTNER[projektId].push(row);
+}
+
+async function deleteAnsprechpartner(id, projektId) {
+  const res = await fetch(`${AP_REST}?id=eq.${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: HEADERS,
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  ANSPRECHPARTNER[projektId] = (ANSPRECHPARTNER[projektId] || []).filter(a => a.id !== id);
+}
+
+function apKontakteFuerProjekt(projektId) {
+  // Ein Eintrag je Kontakt, mit allen Gewerken, die dieser Kontakt auf diesem Projekt hat.
+  const rows = ANSPRECHPARTNER[projektId] || [];
+  const byKontakt = new Map();
+  rows.forEach(row => {
+    const kontakt = KONTAKTE_BY_ID[row.kontakt_id];
+    if (!kontakt) return;
+    if (!byKontakt.has(row.kontakt_id)) byKontakt.set(row.kontakt_id, { kontakt, zuordnungen: [] });
+    byKontakt.get(row.kontakt_id).zuordnungen.push(row);
+  });
+  return Array.from(byKontakt.values());
+}
+
+function buildApAvatarStackCell(p) {
+  const td = document.createElement("td");
+  td.className = "ap-stack-cell";
+  const eintraege = apKontakteFuerProjekt(p._id);
+  if (!eintraege.length) {
+    td.innerHTML = '<span class="empty-dash">–</span>';
+    return td;
+  }
+  const stack = document.createElement("div");
+  stack.className = "ap-stack";
+  const shown = eintraege.slice(0, 3);
+  const rest = eintraege.length - shown.length;
+  shown.forEach(({ kontakt, zuordnungen }) => {
+    const av = document.createElement("span");
+    av.className = "ap-avatar";
+    av.style.background = avatarFarbe(kontakt.id);
+    av.textContent = apInitialen(kontakt.name);
+    av.title = `${kontakt.name} – ${zuordnungen.map(z => z.gewerk).join(", ")}`;
+    stack.appendChild(av);
+  });
+  if (rest > 0) {
+    const more = document.createElement("span");
+    more.className = "ap-more";
+    more.textContent = "+" + rest;
+    more.title = eintraege.slice(3).map(e => e.kontakt.name).join(", ");
+    stack.appendChild(more);
+  }
+  td.appendChild(stack);
+  return td;
+}
+
+function buildApCard(kontakt, zuordnungen, projektId) {
+  const card = document.createElement("div");
+  card.className = "ap-card";
+
+  const avatar = document.createElement("div");
+  avatar.className = "ap-card-avatar";
+  avatar.style.background = avatarFarbe(kontakt.id);
+  avatar.textContent = apInitialen(kontakt.name);
+  card.appendChild(avatar);
+
+  const body = document.createElement("div");
+  body.className = "ap-card-body";
+  const name = document.createElement("div");
+  name.className = "ap-card-name";
+  name.textContent = kontakt.name;
+  body.appendChild(name);
+  if (kontakt.firma) {
+    const firma = document.createElement("div");
+    firma.className = "ap-card-firma";
+    firma.textContent = kontakt.firma;
+    body.appendChild(firma);
+  }
+
+  const chipRow = document.createElement("div");
+  chipRow.className = "ap-chip-row";
+  zuordnungen.forEach(z => {
+    const chip = document.createElement("span");
+    chip.className = "ap-chip";
+    chip.style.background = `color-mix(in srgb, ${gewerkFarbe(z.gewerk)} 22%, transparent)`;
+    const chipLabel = document.createElement("span");
+    chipLabel.textContent = z.gewerk;
+    chip.appendChild(chipLabel);
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "ap-chip-remove";
+    removeBtn.textContent = "✕";
+    removeBtn.title = "Zuordnung entfernen";
+    removeBtn.addEventListener("click", async () => {
+      try {
+        await deleteAnsprechpartner(z.id, projektId);
+      } catch (err) {
+        alert("Entfernen fehlgeschlagen: " + err.message);
+      }
+      renderTable();
+    });
+    chip.appendChild(removeBtn);
+    chipRow.appendChild(chip);
+  });
+  body.appendChild(chipRow);
+
+  const contactLine = [kontakt.email, kontakt.telefon].filter(Boolean).join(" · ");
+  if (contactLine) {
+    const line = document.createElement("div");
+    line.className = "ap-contact-line";
+    line.textContent = contactLine;
+    body.appendChild(line);
+  }
+  card.appendChild(body);
+  return card;
+}
+
+function buildApForm(projektId, onDone) {
+  const form = document.createElement("div");
+  form.className = "ap-form";
+
+  const dropzone = document.createElement("div");
+  dropzone.className = "ap-drop";
+  dropzone.textContent = "📇 Kontakt aus Outlook hierher ziehen (.vcf) – Name, Firma, Telefon und Mail werden automatisch übernommen";
+  form.appendChild(dropzone);
+
+  const datalistId = "ap-kontakte-datalist-" + projektId;
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.className = "ap-name-input";
+  nameInput.placeholder = "Name *";
+  nameInput.setAttribute("list", datalistId);
+  form.appendChild(nameInput);
+
+  const datalist = document.createElement("datalist");
+  datalist.id = datalistId;
+  Object.values(KONTAKTE_BY_ID).forEach(k => {
+    const opt = document.createElement("option");
+    opt.value = k.name;
+    datalist.appendChild(opt);
+  });
+  form.appendChild(datalist);
+
+  const row2 = document.createElement("div");
+  row2.className = "ap-form-row";
+  const firmaInput = document.createElement("input");
+  firmaInput.type = "text";
+  firmaInput.className = "ap-firma-input";
+  firmaInput.placeholder = "Firma";
+  row2.appendChild(firmaInput);
+  const gewerkSelect = document.createElement("select");
+  gewerkSelect.className = "ap-gewerk-select";
+  GEWERKE.forEach(g => {
+    const opt = document.createElement("option");
+    opt.value = g.label;
+    opt.textContent = g.label;
+    gewerkSelect.appendChild(opt);
+  });
+  row2.appendChild(gewerkSelect);
+  form.appendChild(row2);
+
+  const row3 = document.createElement("div");
+  row3.className = "ap-form-row";
+  const emailInput = document.createElement("input");
+  emailInput.type = "text";
+  emailInput.className = "ap-email-input";
+  emailInput.placeholder = "E-Mail";
+  row3.appendChild(emailInput);
+  const telInput = document.createElement("input");
+  telInput.type = "text";
+  telInput.className = "ap-telefon-input";
+  telInput.placeholder = "Telefon";
+  row3.appendChild(telInput);
+  form.appendChild(row3);
+
+  // Zentrale Kontaktliste: bei bekanntem Namen Firma/Mail/Telefon automatisch übernehmen
+  nameInput.addEventListener("input", () => {
+    const match = Object.values(KONTAKTE_BY_ID).find(k => (k.name || "").trim().toLowerCase() === nameInput.value.trim().toLowerCase());
+    if (match) {
+      if (!firmaInput.value) firmaInput.value = match.firma || "";
+      if (!emailInput.value) emailInput.value = match.email || "";
+      if (!telInput.value) telInput.value = match.telefon || "";
+    }
+  });
+
+  function applyParsed(parsed) {
+    if (parsed.name) nameInput.value = parsed.name;
+    if (parsed.firma) firmaInput.value = parsed.firma;
+    if (parsed.email) emailInput.value = parsed.email;
+    if (parsed.telefon) telInput.value = parsed.telefon;
+  }
+
+  dropzone.addEventListener("dragover", e => { e.preventDefault(); dropzone.classList.add("drag-over"); });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag-over"));
+  dropzone.addEventListener("drop", async e => {
+    e.preventDefault();
+    dropzone.classList.remove("drag-over");
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      applyParsed(parseVCard(text));
+    } catch (err) {
+      alert("vCard konnte nicht gelesen werden: " + err.message);
+    }
+  });
+
+  const actions = document.createElement("div");
+  actions.className = "ap-form-actions";
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "ap-form-cancel";
+  cancelBtn.textContent = "Abbrechen";
+  cancelBtn.addEventListener("click", onDone);
+  actions.appendChild(cancelBtn);
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "ap-form-save";
+  saveBtn.textContent = "Speichern";
+  saveBtn.addEventListener("click", async () => {
+    const name = nameInput.value.trim();
+    if (!name) { nameInput.focus(); return; }
+    saveBtn.disabled = true;
+    try {
+      await createAnsprechpartner(projektId, {
+        name, firma: firmaInput.value, email: emailInput.value, telefon: telInput.value,
+      }, gewerkSelect.value);
+      onDone();
+      renderTable();
+    } catch (err) {
+      alert("Speichern fehlgeschlagen: " + err.message);
+      saveBtn.disabled = false;
+    }
+  });
+  actions.appendChild(saveBtn);
+  form.appendChild(actions);
+
+  return form;
+}
+
+function buildApBlock(p) {
+  const block = document.createElement("div");
+  block.className = "detail-block ap-block";
+  const eintraege = apKontakteFuerProjekt(p._id);
+
+  const header = document.createElement("div");
+  header.className = "ap-header";
+  const left = document.createElement("div");
+  const h4 = document.createElement("h4");
+  h4.textContent = "🧑‍🤝‍🧑 Ansprechpartner";
+  left.appendChild(h4);
+  const sub = document.createElement("div");
+  sub.className = "ap-sub";
+  sub.textContent = "Wer ist für welches Gewerk zuständig? Auch für Kolleg:innen sichtbar, die nicht am Projekt arbeiten. Ein Kontakt kann mehrere Gewerke haben.";
+  left.appendChild(sub);
+  header.appendChild(left);
+
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "ap-add-btn";
+  addBtn.textContent = "+ Ansprechpartner hinzufügen";
+  header.appendChild(addBtn);
+  block.appendChild(header);
+
+  if (eintraege.length) {
+    const grid = document.createElement("div");
+    grid.className = "ap-grid";
+    eintraege.forEach(({ kontakt, zuordnungen }) => grid.appendChild(buildApCard(kontakt, zuordnungen, p._id)));
+    block.appendChild(grid);
+  } else {
+    const empty = document.createElement("div");
+    empty.className = "ap-empty";
+    empty.textContent = "Noch keine Ansprechpartner hinterlegt.";
+    block.appendChild(empty);
+  }
+
+  const formHolder = document.createElement("div");
+  formHolder.className = "ap-form-holder";
+  addBtn.addEventListener("click", () => {
+    if (formHolder.firstChild) return;
+    formHolder.appendChild(buildApForm(p._id, () => { formHolder.innerHTML = ""; }));
+  });
+  block.appendChild(formHolder);
+
+  return block;
+}
+
+async function saveProject(id, dataObj) {
+  const payload = { ...dataObj };
+  delete payload._id;
+  delete payload._updated_at;
+  payload._flagged_blue = [];
+  payload._flagged_red = payload._flagged_red || [];
+  const res = await fetch(`${REST}?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { ...HEADERS, Prefer: "return=representation" },
+    body: JSON.stringify({ data: payload, updated_at: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return payload;
+}
+
+async function createProject(name) {
+  const id = "proj-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now();
+  const payload = {
+    projekt: name, projektnummer: null, auftraggeber: null, pl_innotech: null, partner: null, pl_kaufland: null,
+    bestandsunterlagen: null, objektidee: null, kickoff_init: null, h_extra: null,
+    liste400: null, lzk: null,
+    grundleitungen: null, bestand_tauwasser: null, neue_tauwasser_kuehlmoebel: null,
+    einrichtungsplan: null, statik_waermepumpe: null, statik_rlt: null,
+    lph2: null, nachforderung: null, lph3: null,
+    kostenberechnung: null, lkz: null, lph56: null, versand: null, angebotsruecklauf: null,
+    auswertung: null, techn_biet: null, wirtsch_vergaben: null, auftrag: null,
+    aktuelle_lph: null, tauwasser: null, durchbruch: null, elektroliste: null,
+    deckenspiegel_backshop: null, deckenspiegel_kundenwc: null,
+    deckenspiegel_personal: null, deckenspiegel_wareneingang: null,
+    kg400koord: null, baubeginn: null, kickoff_bau: null, bauende: null,
+    notizen: null, todo_liste: [],
+    _flagged_blue: [], _flagged_red: [],
+  };
+  const res = await fetch(REST, {
+    method: "POST",
+    headers: { ...HEADERS, Prefer: "return=representation" },
+    body: JSON.stringify([{ id, data: payload }]),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return { ...payload, _id: id };
+}
+
+// ---------- KPI tiles ----------
+function renderKPIs() {
+  const total = DATA.length;
+  const lph8 = DATA.filter(p => p.aktuelle_lph === 8).length;
+  const emptyProjects = DATA.filter(p => computeGaps(p).length === 1 && computeGaps(p)[0].startsWith("Projekt komplett")).length;
+  const noPL = DATA.filter(p => !p.pl_innotech && !p.pl_kaufland && !(computeGaps(p).length === 1 && computeGaps(p)[0].startsWith("Projekt komplett"))).length;
+  const redFlags = DATA.filter(p => p._flagged_red && p._flagged_red.length).length;
+
+  const tiles = [
+    { value: total, label: "Projekte insgesamt" },
+    { value: lph8, label: "In Ausführung (LPH 8)" },
+    { value: emptyProjects, label: "Noch komplett unbearbeitet" },
+    { value: noPL, label: "Ohne zugewiesenen Projektleiter" },
+    { value: redFlags, label: "Mit rot markierten Terminen", flag: true },
+  ];
+  const row = document.getElementById("kpi-row");
+  row.innerHTML = "";
+  tiles.forEach(t => {
+    const tile = document.createElement("div");
+    tile.className = "kpi-tile" + (t.flag && t.value > 0 ? " flag" : "");
+    tile.innerHTML = `<div class="kpi-value">${t.value}</div><div class="kpi-label">${t.label}</div>`;
+    row.appendChild(tile);
+  });
+}
+
+// ---------- Phase distribution bar chart ----------
+function renderPhaseChart() {
+  const el = document.getElementById("phase-chart");
+  el.innerHTML = "";
+  if (!DATA.length) { el.textContent = "Keine Projekte."; return; }
+  const buckets = {};
+  DATA.forEach(p => {
+    const key = (p.aktuelle_lph === null || p.aktuelle_lph === undefined) ? "ohne" : String(p.aktuelle_lph);
+    buckets[key] = (buckets[key] || 0) + 1;
+  });
+  const numericKeys = Object.keys(buckets).filter(k => k !== "ohne" && k !== "Beratungsleistung").sort((a,b)=>a-b);
+  const order = numericKeys
+    .concat(buckets["Beratungsleistung"] ? ["Beratungsleistung"] : [])
+    .concat(buckets["ohne"] ? ["ohne"] : []);
+  const max = Math.max(...Object.values(buckets));
+  order.forEach(key => {
+    const count = buckets[key];
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    const label = key === "ohne" ? "Ohne Angabe" : (key === "Beratungsleistung" ? "Beratungsleistung" : "LPH " + key);
+    const pct = (count / max) * 100;
+    const color = key === "ohne" ? "var(--baseline)" : (key === "Beratungsleistung" ? "#6b5bd6" : "var(--series-1)");
+    row.innerHTML = `
+      <div class="bar-label">${label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${color};"></div></div>
+      <div class="bar-count">${count}</div>`;
+    el.appendChild(row);
+  });
+}
+
+// ---------- Timeline (dumbbell) ----------
+function renderTimeline() {
+  const el = document.getElementById("timeline-card");
+  el.innerHTML = "";
+  const rows = DATA.filter(p => p.baubeginn).map(p => ({
+    name: p.projekt,
+    start: new Date(p.baubeginn + "T00:00:00"),
+    end: p.bauende ? new Date(p.bauende + "T00:00:00") : null,
+    flagged: (p._flagged_red || []).includes("baubeginn") || (p._flagged_red || []).includes("bauende"),
+  }));
+  if (!rows.length) { el.textContent = "Keine Projekte mit Baubeginn-Termin."; return; }
+
+  const allDates = rows.flatMap(r => [r.start, r.end].filter(Boolean)).concat([TODAY]);
+  const minDate = new Date(Math.min(...allDates) - 20*86400000);
+  const maxDate = new Date(Math.max(...allDates) + 20*86400000);
+  const width = 900, rowH = 40, leftPad = 190, rightPad = 20, topPad = 30, bottomPad = 30;
+  const height = topPad + rows.length * rowH + bottomPad;
+  const plotW = width - leftPad - rightPad;
+
+  function x(d) { return leftPad + ( (d - minDate) / (maxDate - minDate) ) * plotW; }
+
+  let months = [];
+  let cur = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+  while (cur <= maxDate) { months.push(new Date(cur)); cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1); }
+
+  let svg = `<svg viewBox="0 0 ${width} ${height}" width="100%" style="max-width:${width}px; display:block;">`;
+
+  months.forEach(m => {
+    const xm = x(m);
+    svg += `<line x1="${xm}" y1="${topPad-10}" x2="${xm}" y2="${height-bottomPad}" stroke="var(--gridline)" stroke-width="1"/>`;
+    svg += `<text x="${xm}" y="${topPad-16}" class="timeline-axis-label" text-anchor="middle">${m.toLocaleDateString("de-DE",{month:"short",year:"2-digit"})}</text>`;
+  });
+
+  const xToday = x(TODAY);
+  svg += `<line x1="${xToday}" y1="${topPad-10}" x2="${xToday}" y2="${height-bottomPad}" stroke="var(--text-secondary)" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+  svg += `<text x="${xToday}" y="${height-bottomPad+16}" class="timeline-today-label" text-anchor="middle">heute</text>`;
+
+  rows.forEach((r, i) => {
+    const y = topPad + i * rowH + rowH/2;
+    svg += `<text x="${leftPad-14}" y="${y+4}" class="timeline-row-label" text-anchor="end">${r.name}</text>`;
+    const xs = x(r.start);
+    const xe = r.end ? x(r.end) : xs + 24;
+    const ring = r.flagged ? 'stroke="var(--status-critical)" stroke-width="2"' : 'stroke="var(--surface-1)" stroke-width="2"';
+    svg += `<line x1="${xs}" y1="${y}" x2="${xe}" y2="${y}" stroke="var(--series-1-light)" stroke-width="6" stroke-linecap="round"/>`;
+    svg += `<circle cx="${xs}" cy="${y}" r="6" fill="var(--series-1)" ${ring}/>`;
+    if (r.end) {
+      svg += `<circle cx="${xe}" cy="${y}" r="6" fill="var(--series-1-dark)" ${ring}/>`;
+    } else {
+      svg += `<circle cx="${xe}" cy="${y}" r="6" fill="none" stroke="var(--baseline)" stroke-width="2" stroke-dasharray="2,2"/>`;
+      svg += `<text x="${xe+10}" y="${y+4}" class="timeline-axis-label">Bauende offen</text>`;
+    }
+  });
+
+  svg += `</svg>`;
+  el.innerHTML = svg;
+}
+
+// ---------- Edit form ----------
+function buildEditForm(p) {
+  const form = document.createElement("div");
+  form.className = "edit-form";
+
+  const projBlock = document.createElement("div");
+  projBlock.className = "detail-block";
+  projBlock.innerHTML = "<h4>Projekt</h4>";
+  const projGrid = document.createElement("div");
+  projGrid.className = "edit-grid";
+  [["projektnummer","Projektnummer"],["auftraggeber","Auftraggeber"]].forEach(([key,label]) => {
+    const wrap = document.createElement("label");
+    wrap.className = "edit-field";
+    wrap.innerHTML = `<span>${label}</span>`;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.dataset.key = key;
+    input.value = p[key] || "";
+    wrap.appendChild(input);
+    projGrid.appendChild(wrap);
+  });
+  projBlock.appendChild(projGrid);
+  form.appendChild(projBlock);
+
+  const respBlock = document.createElement("div");
+  respBlock.className = "detail-block";
+  respBlock.innerHTML = "<h4>Verantwortliche</h4>";
+  const respGrid = document.createElement("div");
+  respGrid.className = "edit-grid";
+  [["pl_innotech","PL Innotech"],["pl_kaufland","PL Kunde"],["partner","Partner"]].forEach(([key,label]) => {
+    const wrap = document.createElement("label");
+    wrap.className = "edit-field";
+    wrap.innerHTML = `<span>${label}</span>`;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.dataset.key = key;
+    input.value = p[key] || "";
+    wrap.appendChild(input);
+    respGrid.appendChild(wrap);
+  });
+  const lphWrap = document.createElement("label");
+  lphWrap.className = "edit-field";
+  lphWrap.innerHTML = "<span>Aktuelle LPH</span>";
+  const lphSelect = document.createElement("select");
+  lphSelect.dataset.key = "aktuelle_lph";
+  lphSelect.innerHTML = '<option value="">–</option>' + [0,1,2,3,4,5,6,7,8,9].map(n => `<option value="${n}"${p.aktuelle_lph===n?' selected':''}>LPH ${n}</option>`).join("") + `<option value="Beratungsleistung"${p.aktuelle_lph==="Beratungsleistung"?' selected':''}>Beratungsleistung</option>`;
+  lphWrap.appendChild(lphSelect);
+  respGrid.appendChild(lphWrap);
+  respBlock.appendChild(respGrid);
+
+  const milestoneBlock = document.createElement("div");
+  milestoneBlock.className = "detail-block";
+  milestoneBlock.innerHTML = "<h4>Termine</h4>";
+  const mGrid = document.createElement("div");
+  mGrid.className = "edit-grid";
+  MILESTONE_ORDER.forEach(key => {
+    const wrap = document.createElement("label");
+    wrap.className = "edit-field";
+    wrap.innerHTML = `<span>${FIELD_LABELS[key]}</span>`;
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "JJJJ-MM-TT oder ?";
+    input.dataset.key = key;
+    input.value = p[key] || "";
+    wrap.appendChild(input);
+    mGrid.appendChild(wrap);
+  });
+  milestoneBlock.appendChild(mGrid);
+
+  const checklistBlock = document.createElement("div");
+  checklistBlock.className = "detail-block";
+  checklistBlock.innerHTML = "<h4>Checklisten-Status</h4>";
+  const cGrid = document.createElement("div");
+  cGrid.className = "edit-grid";
+  CHECKLIST_ORDER.forEach(key => {
+    const wrap = document.createElement("label");
+    wrap.className = "edit-field";
+    wrap.innerHTML = `<span>${FIELD_LABELS[key]}</span>`;
+    const select = document.createElement("select");
+    select.dataset.key = key;
+    const cur = p[key];
+    select.innerHTML = `
+      <option value=""${cur==null?' selected':''}>– nicht begonnen</option>
+      <option value="1"${cur===1?' selected':''}>1 – offen</option>
+      <option value="2"${cur===2?' selected':''}>2 – in Bearbeitung</option>
+      <option value="3"${cur===3?' selected':''}>3 – erledigt</option>`;
+    wrap.appendChild(select);
+    cGrid.appendChild(wrap);
+  });
+  checklistBlock.appendChild(cGrid);
+
+  const cols = document.createElement("div");
+  cols.className = "detail-cols";
+  cols.appendChild(respBlock);
+  cols.appendChild(milestoneBlock);
+  form.appendChild(cols);
+  form.appendChild(checklistBlock);
+
+  const todosBlock = document.createElement("div");
+  todosBlock.className = "detail-block todo-block";
+  todosBlock.innerHTML = "<h4>Eigene ToDos</h4>";
+
+  let ownTodos = Array.isArray(p.todo_liste) ? JSON.parse(JSON.stringify(p.todo_liste)) : [];
+  // Migration: alte Freitext-Notiz (Feld "notizen") als ersten Punkt übernehmen, falls noch keine Liste existiert.
+  if (!ownTodos.length && p.notizen && p.notizen.trim()) {
+    ownTodos.push({ id: newOwnTodoId(), text: p.notizen.trim(), verantwortlich: "", status: "offen", erstellt: (p._updated_at || "").slice(0, 10) || "" });
+  }
+
+  const todosList = document.createElement("div");
+  todosList.className = "own-todo-edit-list";
+
+  const todosHidden = document.createElement("input");
+  todosHidden.type = "hidden";
+  todosHidden.dataset.key = "todo_liste";
+
+  function syncOwnTodosHidden() {
+    todosHidden.value = JSON.stringify(ownTodos);
+  }
+
+  function renderOwnTodoEditList() {
+    todosList.innerHTML = "";
+    if (!ownTodos.length) {
+      const empty = document.createElement("div");
+      empty.className = "todo-display empty";
+      empty.textContent = "Noch keine eigenen ToDos – mit „+ Punkt hinzufügen“ anlegen.";
+      todosList.appendChild(empty);
+    }
+    ownTodos.forEach((item, idx) => {
+      const row = document.createElement("div");
+      row.className = "own-todo-edit-item";
+
+      const textInput = document.createElement("input");
+      textInput.type = "text";
+      textInput.className = "own-todo-text-input";
+      textInput.placeholder = "Was ist zu tun?";
+      textInput.value = item.text || "";
+      textInput.addEventListener("input", () => { ownTodos[idx].text = textInput.value; syncOwnTodosHidden(); });
+
+      const row2 = document.createElement("div");
+      row2.className = "own-todo-edit-row2";
+
+      const respInput = document.createElement("input");
+      respInput.type = "text";
+      respInput.className = "own-todo-resp-input";
+      respInput.placeholder = "Verantwortlich";
+      respInput.value = item.verantwortlich || "";
+      respInput.addEventListener("input", () => { ownTodos[idx].verantwortlich = respInput.value; syncOwnTodosHidden(); });
+
+      const statusSelect = document.createElement("select");
+      statusSelect.className = "own-todo-status-select";
+      OWN_TODO_STATUSES.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s;
+        opt.textContent = s;
+        if ((item.status || "offen") === s) opt.selected = true;
+        statusSelect.appendChild(opt);
+      });
+      statusSelect.addEventListener("change", () => { ownTodos[idx].status = statusSelect.value; syncOwnTodosHidden(); });
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "own-todo-remove-btn";
+      removeBtn.textContent = "✕";
+      removeBtn.title = "Punkt entfernen";
+      removeBtn.addEventListener("click", () => {
+        ownTodos.splice(idx, 1);
+        syncOwnTodosHidden();
+        renderOwnTodoEditList();
+      });
+
+      row2.appendChild(respInput);
+      row2.appendChild(statusSelect);
+      row2.appendChild(removeBtn);
+      row.appendChild(textInput);
+      row.appendChild(row2);
+      todosList.appendChild(row);
+    });
+  }
+
+  renderOwnTodoEditList();
+  syncOwnTodosHidden();
+
+  const addTodoBtn = document.createElement("button");
+  addTodoBtn.type = "button";
+  addTodoBtn.className = "btn-secondary own-todo-add-btn";
+  addTodoBtn.textContent = "+ Punkt hinzufügen";
+  addTodoBtn.addEventListener("click", () => {
+    ownTodos.push({ id: newOwnTodoId(), text: "", verantwortlich: "", status: "offen", erstellt: new Date().toISOString().slice(0, 10) });
+    syncOwnTodosHidden();
+    renderOwnTodoEditList();
+  });
+
+  todosBlock.appendChild(todosList);
+  todosBlock.appendChild(addTodoBtn);
+  todosBlock.appendChild(todosHidden);
+  form.appendChild(todosBlock);
+
+  if (gfSession) {
+    const gf = GF_PROJEKT_NOTIZEN[p._id] || {};
+    const gfBlock = document.createElement("div");
+    gfBlock.className = "gf-edit-block";
+    gfBlock.innerHTML = "<h4>🔒 Geschäftsführung (nur intern)</h4>";
+    const gfGrid = document.createElement("div");
+    gfGrid.className = "gf-edit-grid";
+    [["gf_auftragswert", "Auftragswert (€)"], ["gf_kosten", "Kosten (€)"], ["gf_marge", "Marge (€)"]].forEach(([key, label]) => {
+      const wrap = document.createElement("label");
+      wrap.className = "edit-field";
+      wrap.innerHTML = `<span>${label}</span>`;
+      const input = document.createElement("input");
+      input.type = "number";
+      input.step = "0.01";
+      input.dataset.gfKey = key;
+      input.value = gf[key.replace("gf_", "")] ?? "";
+      wrap.appendChild(input);
+      gfGrid.appendChild(wrap);
+    });
+    gfBlock.appendChild(gfGrid);
+
+    const riskWrap = document.createElement("label");
+    riskWrap.className = "edit-field";
+    riskWrap.innerHTML = `<span>Interne Bewertung / Risiko</span>`;
+    const riskSelect = document.createElement("select");
+    riskSelect.dataset.gfKey = "gf_risiko";
+    ["", "Niedrig", "Mittel", "Hoch"].forEach(v => {
+      const opt = document.createElement("option");
+      opt.value = v; opt.textContent = v || "— keine Angabe —";
+      if ((gf.risiko || "") === v) opt.selected = true;
+      riskSelect.appendChild(opt);
+    });
+    riskWrap.appendChild(riskSelect);
+    gfBlock.appendChild(riskWrap);
+
+    const notizWrap = document.createElement("label");
+    notizWrap.className = "edit-field";
+    notizWrap.innerHTML = `<span>GF-Notiz</span>`;
+    const notizArea = document.createElement("textarea");
+    notizArea.dataset.gfKey = "gf_notiz";
+    notizArea.rows = 3;
+    notizArea.value = gf.notiz || "";
+    notizWrap.appendChild(notizArea);
+    gfBlock.appendChild(notizWrap);
+
+    form.appendChild(gfBlock);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "edit-actions";
+  actions.innerHTML = `<button type="button" class="btn-primary" data-action="save">Speichern</button>
+    <button type="button" class="btn-secondary" data-action="cancel">Abbrechen</button>
+    <span class="save-status"></span>`;
+  form.appendChild(actions);
+
+  return form;
+}
+
+function readEditForm(form, base) {
+  const out = { ...base };
+  form.querySelectorAll("[data-key]").forEach(el => {
+    const key = el.dataset.key;
+    if (key === "todo_liste") {
+      let list = [];
+      try { list = JSON.parse(el.value || "[]"); } catch (e) { list = []; }
+      out[key] = list.filter(t => (t.text || "").trim() !== "");
+      out.notizen = null; // abgelöst durch die strukturierte ToDo-Liste
+      return;
+    }
+    let val = el.value.trim();
+    if (key === "aktuelle_lph") {
+      out[key] = val === "" ? null : (/^-?\d+$/.test(val) ? parseInt(val, 10) : val);
+    } else if (CHECKLIST_ORDER.includes(key)) {
+      out[key] = val === "" ? null : parseInt(val, 10);
+    } else {
+      out[key] = val === "" ? null : val;
+    }
+  });
+  return out;
+}
+
+function readGFEditForm(form) {
+  const out = {};
+  form.querySelectorAll("[data-gf-key]").forEach(el => {
+    const key = el.dataset.gfKey.replace("gf_", "");
+    if (el.tagName === "TEXTAREA" || el.type === "text" || el.tagName === "SELECT") {
+      out[key] = el.value.trim() === "" ? null : el.value.trim();
+    } else if (el.type === "number") {
+      out[key] = el.value.trim() === "" ? null : parseFloat(el.value);
+    }
+  });
+  return out;
+}
+
+// ---------- Project table ----------
+function renderTable() {
+  const tbody = document.getElementById("proj-tbody");
+  tbody.innerHTML = "";
+  DATA.forEach((p, idx) => {
+    const gaps = computeGaps(p);
+    const innoTodos = innotechTodosForProject(p);
+    const openOwnTodos = (Array.isArray(p.todo_liste) ? p.todo_liste : []).filter(t => t.status !== "erledigt").length;
+    const isExpanded = p._id === expandedId;
+    const main = document.createElement("tr");
+    main.className = "main-row" + (isExpanded ? " expanded" : "");
+    main.innerHTML = `
+      <td><span class="caret">▸</span><span class="proj-name">${p.projekt}</span>${openOwnTodos ? `<span class="todo-indicator" title="${openOwnTodos} offene eigene ToDo(s)">📝 ${openOwnTodos}</span>` : (p.notizen && p.notizen.trim() ? '<span class="todo-indicator" title="Alte Notiz vorhanden (noch nicht migriert)">📝</span>' : '')}${innoTodos.length ? `<span class="todo-indicator" title="${innoTodos.length} offene INNOTECH-ToDo(s) aus Protokollen">📋 ${innoTodos.length}</span>` : ''}</td>
+      <td>${p.auftraggeber || '<span class="empty-dash">–</span>'}</td>
+      <td>${p.pl_innotech || '<span class="empty-dash">–</span>'}</td>
+      <td>${p.pl_kaufland || '<span class="empty-dash">–</span>'}</td>
+      <td></td>
+      <td>${fmtDate(p.baubeginn) || '<span class="empty-dash">–</span>'}</td>
+      <td>${fmtDate(p.bauende) || '<span class="empty-dash">–</span>'}</td>
+      <td>${gaps.length ? `<span class="count-badge">${gaps.length}</span>` : '<span class="empty-dash">–</span>'}</td>
+    `;
+    main.children[4].appendChild(lphBadge(p.aktuelle_lph));
+    main.appendChild(buildApAvatarStackCell(p));
+    tbody.appendChild(main);
+
+    const detail = document.createElement("tr");
+    detail.className = "detail-row" + (isExpanded ? "" : " collapsed");
+    const td = document.createElement("td");
+    td.colSpan = 9;
+    const inner = document.createElement("div");
+    inner.className = "detail-inner";
+
+    if (isExpanded && p._id === editingId) {
+      const form = buildEditForm(p);
+      inner.appendChild(form);
+      form.addEventListener("click", async (e) => {
+        const action = e.target.dataset.action;
+        if (action === "cancel") {
+          editingId = null;
+          renderTable();
+        } else if (action === "save") {
+          const statusSpan = form.querySelector(".save-status");
+          statusSpan.textContent = "Speichere …";
+          try {
+            const updated = await saveProject(p._id, readEditForm(form, p));
+            DATA[idx] = { ...updated, _id: p._id, _updated_at: new Date().toISOString() };
+            if (gfSession) {
+              await saveGFProjektNotiz(p._id, readGFEditForm(form));
+            }
+            editingId = null;
+            renderAll();
+          } catch (err) {
+            statusSpan.textContent = "Fehler: " + err.message;
+            statusSpan.style.color = "var(--status-critical)";
+          }
+        }
+      });
+    } else {
+      const header = document.createElement("div");
+      header.className = "detail-header";
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "btn-edit";
+      editBtn.textContent = "✎ Bearbeiten";
+      editBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        editingId = p._id;
+        renderTable();
+      });
+      header.appendChild(editBtn);
+      inner.appendChild(header);
+
+      const cols = document.createElement("div");
+      cols.className = "detail-cols";
+
+      const milestoneBlock = document.createElement("div");
+      milestoneBlock.className = "detail-block";
+      milestoneBlock.innerHTML = "<h4>Termine</h4>";
+      const mList = document.createElement("div");
+      mList.className = "milestone-list";
+      let anyMilestone = false;
+      MILESTONE_ORDER.forEach(key => {
+        const v = p[key];
+        if (v === null || v === undefined || v === "") return;
+        anyMilestone = true;
+        const row = document.createElement("div");
+        const isFlagged = (p._flagged_red || []).includes(key);
+        row.className = "milestone" + (isFlagged ? " flagged" : "");
+        const dateStr = v === "?" ? "unklar (?)" : (fmtDate(v) || v);
+        row.innerHTML = `<span class="milestone-name">${FIELD_LABELS[key]}</span><span class="milestone-date">${dateStr}</span>`;
+        mList.appendChild(row);
+      });
+      if (!anyMilestone) mList.innerHTML = '<span class="empty-dash">Noch keine Termine erfasst.</span>';
+      milestoneBlock.appendChild(mList);
+
+      const checklistBlock = document.createElement("div");
+      checklistBlock.className = "detail-block";
+      checklistBlock.innerHTML = "<h4>Checklisten-Status</h4>";
+      const cGrid = document.createElement("div");
+      cGrid.className = "chip-grid";
+      CHECKLIST_ORDER.forEach(key => {
+        cGrid.appendChild(statusChip(p[key], FIELD_LABELS[key]));
+      });
+      checklistBlock.appendChild(cGrid);
+
+      if (p.partner) {
+        checklistBlock.innerHTML += `<h4>Partner</h4><div style="font-size:12px;">${p.partner}</div>`;
+      }
+
+      cols.appendChild(milestoneBlock);
+      cols.appendChild(checklistBlock);
+      cols.appendChild(buildTerminplanBlock(p));
+      cols.appendChild(buildEingangBlock(p));
+      cols.appendChild(buildApBlock(p));
+
+      const todoBlock = document.createElement("div");
+      todoBlock.className = "detail-block todo-block";
+      todoBlock.innerHTML = "<h4>Eigene ToDos</h4>";
+      const ownTodosView = Array.isArray(p.todo_liste) ? p.todo_liste : [];
+      if (ownTodosView.length) {
+        const list = document.createElement("div");
+        list.className = "proto-todo-list";
+        [...ownTodosView]
+          .sort((a, b) => (a.status === "erledigt" ? 1 : 0) - (b.status === "erledigt" ? 1 : 0))
+          .forEach(t => {
+            const item = document.createElement("div");
+            item.className = "proto-todo-item" + (t.status === "erledigt" ? " own-todo-done" : "");
+
+            const head = document.createElement("div");
+            head.className = "proto-todo-head";
+            const titleEl = document.createElement("span");
+            titleEl.className = "proto-todo-title";
+            titleEl.textContent = t.text || "(ohne Titel)";
+            head.appendChild(titleEl);
+            head.appendChild(protoStatusChip(t.status || "offen"));
+            item.appendChild(head);
+
+            const metaParts = [];
+            if (t.verantwortlich) metaParts.push("Verantwortlich: " + t.verantwortlich);
+            if (t.erstellt) metaParts.push("angelegt " + (fmtDate(t.erstellt) || t.erstellt));
+            if (metaParts.length) {
+              const meta = document.createElement("div");
+              meta.className = "proto-todo-meta";
+              meta.textContent = metaParts.join(" · ");
+              item.appendChild(meta);
+            }
+            list.appendChild(item);
+          });
+        todoBlock.appendChild(list);
+      } else if (p.notizen && p.notizen.trim()) {
+        // Alte Freitext-Notiz, noch nicht in die neue Liste migriert (passiert beim nächsten Bearbeiten automatisch).
+        const legacy = document.createElement("div");
+        legacy.className = "todo-display";
+        legacy.textContent = p.notizen;
+        todoBlock.appendChild(legacy);
+      } else {
+        const empty = document.createElement("div");
+        empty.className = "todo-display empty";
+        empty.textContent = "Noch keine eigenen ToDos erfasst.";
+        todoBlock.appendChild(empty);
+      }
+      cols.appendChild(todoBlock);
+
+      const innoBlock = document.createElement("div");
+      innoBlock.className = "detail-block todo-block";
+      innoBlock.innerHTML = "<h4>Offene INNOTECH-ToDos aus Protokollen</h4>";
+      if (innoTodos.length) {
+        const list = document.createElement("div");
+        list.className = "proto-todo-list";
+        innoTodos.forEach(t => {
+          const item = document.createElement("div");
+          item.className = "proto-todo-item";
+
+          const head = document.createElement("div");
+          head.className = "proto-todo-head";
+          const titleEl = document.createElement("span");
+          titleEl.className = "proto-todo-title";
+          titleEl.textContent = t.titel;
+          head.appendChild(titleEl);
+          head.appendChild(protoStatusChip(t.status));
+          item.appendChild(head);
+
+          if (t.inhalt) {
+            const body = document.createElement("div");
+            body.className = "proto-todo-body";
+            body.textContent = t.inhalt;
+            item.appendChild(body);
+          }
+
+          const meta = document.createElement("div");
+          meta.className = "proto-todo-meta";
+          const metaParts = [];
+          if (t.termin) metaParts.push("Termin: " + t.termin);
+          if (t.protoNr) metaParts.push("Protokoll Nr. " + t.protoNr);
+          if (t.protoDatum) metaParts.push(fmtDate(t.protoDatum) || t.protoDatum);
+          if (t.section) metaParts.push(t.section);
+          meta.textContent = metaParts.join(" · ");
+          item.appendChild(meta);
+
+          list.appendChild(item);
+        });
+        innoBlock.appendChild(list);
+      } else {
+        const empty = document.createElement("div");
+        empty.className = "todo-display empty";
+        empty.textContent = ordnerForProject(p)
+          ? "Keine offenen INNOTECH-Punkte in den Protokollen."
+          : "Noch kein Protokoll-Ordner für dieses Projekt gefunden.";
+        innoBlock.appendChild(empty);
+      }
+      cols.appendChild(innoBlock);
+
+      if (gfSession) {
+        const gf = GF_PROJEKT_NOTIZEN[p._id] || {};
+        const gfBlock = document.createElement("div");
+        gfBlock.className = "detail-block gf-block";
+        gfBlock.innerHTML = "<h4>🔒 Geschäftsführung</h4>";
+        const note = document.createElement("p");
+        note.className = "gf-block-note";
+        note.textContent = "Nur für angemeldete Geschäftsführung sichtbar.";
+        gfBlock.appendChild(note);
+        const kv = document.createElement("div");
+        kv.className = "gf-kv-grid";
+        const fmtEUR = v => v === null || v === undefined || v === "" ? "–" : Number(v).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+        kv.innerHTML = `
+          <span class="gf-kv-label">Auftragswert</span><span>${fmtEUR(gf.auftragswert)}</span>
+          <span class="gf-kv-label">Kosten</span><span>${fmtEUR(gf.kosten)}</span>
+          <span class="gf-kv-label">Marge</span><span>${fmtEUR(gf.marge)}</span>
+          <span class="gf-kv-label">Risiko</span><span>${gf.risiko || "–"}</span>
+        `;
+        gfBlock.appendChild(kv);
+        if (gf.notiz && gf.notiz.trim()) {
+          const notizEl = document.createElement("div");
+          notizEl.className = "gf-notiz-display";
+          notizEl.textContent = gf.notiz;
+          gfBlock.appendChild(notizEl);
+        }
+        cols.appendChild(gfBlock);
+      }
+
+      inner.appendChild(cols);
+
+      if (gaps.length) {
+        const notes = document.createElement("div");
+        notes.className = "notes-box";
+        notes.innerHTML = "<b>Offene Punkte:</b><br>" + gaps.map(g => "• " + g).join("<br>");
+        inner.appendChild(notes);
+      }
+    }
+
+    td.appendChild(inner);
+    detail.appendChild(td);
+    tbody.appendChild(detail);
+
+    main.addEventListener("click", () => {
+      if (expandedId === p._id) {
+        expandedId = null;
+        editingId = null;
+      } else {
+        expandedId = p._id;
+      }
+      renderTable();
+    });
+  });
+}
+
+// ---------- Gaps overview ----------
+function renderGaps() {
+  const grid = document.getElementById("gaps-grid");
+  grid.innerHTML = "";
+
+  const emptyList = DATA.filter(p => computeGaps(p).length === 1 && computeGaps(p)[0].startsWith("Projekt komplett")).map(p => p.projekt);
+  const noPLList = DATA.filter(p => !p.pl_innotech && !p.pl_kaufland && !emptyList.includes(p.projekt)).map(p => p.projekt);
+  const noLphList = DATA.filter(p => (p.aktuelle_lph === null || p.aktuelle_lph === undefined) && !emptyList.includes(p.projekt)).map(p => p.projekt);
+  const openEndList = DATA.filter(p => p.baubeginn && !p.bauende).map(p => p.projekt);
+  const redList = DATA.filter(p => p._flagged_red && p._flagged_red.length).map(p => `${p.projekt} (${p._flagged_red.map(k=>FIELD_LABELS[k]||k).join(", ")})`);
+  const unclearList = DATA.filter(p => p.kickoff_init === "?").map(p => p.projekt);
+
+  const cards = [
+    { title: "Noch komplett unbearbeitet", items: emptyList },
+    { title: "Ohne zugewiesenen Projektleiter", items: noPLList },
+    { title: "„Aktuelle LPH“ nicht gepflegt (trotz vorhandener Daten)", items: noLphList },
+    { title: "Baubeginn gesetzt, Bauende offen", items: openEndList },
+    { title: "Rot markierte Termine (Original) – prüfen", items: redList },
+    { title: "Termin unklar markiert („?“)", items: unclearList },
+  ];
+
+  let any = false;
+  cards.forEach(c => {
+    if (!c.items.length) return;
+    any = true;
+    const card = document.createElement("div");
+    card.className = "gap-card";
+    card.innerHTML = `<h3>${c.title} <span class="count-badge" style="background:var(--baseline); color:var(--text-primary);">${c.items.length}</span></h3>
+      <ul>${c.items.map(i => `<li>${i}</li>`).join("")}</ul>`;
+    grid.appendChild(card);
+  });
+  if (!any) grid.innerHTML = '<span class="empty-dash">Keine offenen Punkte erkannt.</span>';
+}
+
+// ---------- Excel-style table view ----------
+const EXCEL_COLUMNS = [
+  { key: "projektnummer", label: "Projektnummer", type: "text" },
+  { key: "auftraggeber", label: "Auftraggeber", type: "text" },
+  { key: "pl_innotech", label: "PL INNOTECH", type: "text" },
+  { key: "partner", label: "Partner", type: "text" },
+  { key: "pl_kaufland", label: "PL Kunde", type: "text" },
+  { key: "bestandsunterlagen", label: "Bestandsunterlagen", type: "status" },
+  { key: "objektidee", label: "Objektidee in Grundriss", type: "status" },
+  { key: "kickoff_init", label: "Kick-Off", type: "date" },
+  { key: "h_extra", label: "", type: "status" },
+  { key: "liste400", label: "400er Liste", type: "status" },
+  { key: "lzk", label: "LZK", type: "status" },
+  { key: "grundleitungen", label: "Grundleitungen", type: "status" },
+  { key: "bestand_tauwasser", label: "Bestandsaufnahme Tauwasser", type: "status" },
+  { key: "neue_tauwasser_kuehlmoebel", label: "Neue Tauwasseranschlüsse Kühlmöbel", type: "status" },
+  { key: "einrichtungsplan", label: "Einrichtungsplan", type: "status" },
+  { key: "statik_waermepumpe", label: "Statik Wärmepumpe", type: "status" },
+  { key: "statik_rlt", label: "Statik RLT-Gerät", type: "status" },
+  { key: "lph2", label: "LPH 2", type: "date" },
+  { key: "nachforderung", label: "Nachforderung", type: "date" },
+  { key: "lph3", label: "LPH 3", type: "date" },
+  { key: "kostenberechnung", label: "Kostenberechnung", type: "date" },
+  { key: "lkz", label: "LKZ", type: "status" },
+  { key: "lph56", label: "LPH 5-6", type: "date" },
+  { key: "versand", label: "Versand", type: "date" },
+  { key: "angebotsruecklauf", label: "Angebots-<br>rücklauf", type: "date" },
+  { key: "auswertung", label: "Auswertung", type: "date" },
+  { key: "techn_biet", label: "Techn. Bieter-<br>gespräche", type: "date" },
+  { key: "wirtsch_vergaben", label: "Wirtsch. Vergaben", type: "date" },
+  { key: "auftrag", label: "Auftrag", type: "date" },
+  { key: "aktuelle_lph", label: "Aktuelle LPH", type: "lph" },
+  { key: "tauwasser", label: "Abstimmung Tauwasseranschlüsse", type: "status" },
+  { key: "durchbruch", label: "Durchbruchsangaben", type: "status" },
+  { key: "elektroliste", label: "Elektroliste", type: "status" },
+  { key: "deckenspiegel_backshop", label: "Deckenspiegel Backshop", type: "status" },
+  { key: "deckenspiegel_kundenwc", label: "Deckenspiegel Kunden-WC", type: "status" },
+  { key: "deckenspiegel_personal", label: "Deckenspiegel Personal", type: "status" },
+  { key: "deckenspiegel_wareneingang", label: "Deckenspiegel Wareneingangsbüro", type: "status" },
+  { key: "kg400koord", label: "KG 400 Koordination", type: "status" },
+  { key: "baubeginn", label: "Baubeginn", type: "date" },
+  { key: "kickoff_bau", label: "Kick Off", type: "status" },
+  { key: "bauende", label: "Bauende", type: "date" },
+];
+
+function excelCellContent(p, col) {
+  const v = p[col.key];
+  const isProvisional = (p._flagged_blue || []).includes(col.key);
+  const isFlagged = (p._flagged_red || []).includes(col.key);
+  let cls = [];
+  let text = "";
+
+  if (col.type === "status") {
+    const n = (v === null || v === undefined || v === "") ? 0 : v;
+    cls.push("xstat-" + n);
+    text = n === 0 ? "" : String(n);
+  } else if (col.type === "lph") {
+    cls.push("xlph");
+    text = (v === null || v === undefined) ? "" : String(v);
+  } else if (col.type === "date") {
+    if (v === "?") {
+      text = "?";
+    } else {
+      text = fmtDate(v) || "";
+    }
+    if (isProvisional) cls.push("xprovisional");
+    if (isFlagged) cls.push("xflagged");
+  } else {
+    text = v || "";
+  }
+  return { cls: cls.join(" "), text };
+}
+
+function renderExcelView() {
+  const table = document.getElementById("excel-table");
+  if (!table) return;
+  table.innerHTML = "";
+
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  headRow.innerHTML = "<th>Projekt</th>" + EXCEL_COLUMNS.map(c => `<th title="${c.key === 'h_extra' ? 'Spalte ohne Titel im Original' : ''}">${c.label}</th>`).join("");
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  DATA.forEach(p => {
+    const tr = document.createElement("tr");
+    const th = document.createElement("th");
+    th.textContent = p.projekt;
+    tr.appendChild(th);
+    EXCEL_COLUMNS.forEach(col => {
+      const td = document.createElement("td");
+      const { cls, text } = excelCellContent(p, col);
+      if (cls) td.className = cls;
+      td.textContent = text;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+}
+
+// ---------- GF-Bereich: Auth + CRUD ----------
+function gfHeaders() {
+  return {
+    apikey: SUPABASE_KEY,
+    Authorization: `Bearer ${gfSession.access_token}`,
+    "Content-Type": "application/json",
+  };
+}
+
+function newGFId() {
+  return "gf-" + Date.now() + "-" + Math.floor(Math.random() * 100000);
+}
+
+async function gfLoadThemen() {
+  if (!gfSession) { GF_THEMEN = []; return; }
+  try {
+    const res = await fetch(`${GF_REST}?select=id,data,updated_at`, { headers: gfHeaders() });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const rows = await res.json();
+    GF_THEMEN = rows.map(r => ({ ...r.data, _id: r.id, _updated_at: r.updated_at }));
+    GF_THEMEN.sort((a, b) => (a._updated_at || "").localeCompare(b._updated_at || ""));
+  } catch (err) {
+    GF_THEMEN = [];
+    console.error("GF-Themen konnten nicht geladen werden:", err);
+  }
+}
+
+async function gfCreateThema() {
+  const id = newGFId();
+  const payload = { titel: "", beschreibung: "", verantwortlich: "", status: "offen", termin: "", erstellt: new Date().toISOString().slice(0, 10), gruppe: "" };
+  const res = await fetch(GF_REST, {
+    method: "POST",
+    headers: { ...gfHeaders(), Prefer: "return=representation" },
+    body: JSON.stringify({ id, data: payload }),
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  GF_THEMEN.push({ ...payload, _id: id, _updated_at: new Date().toISOString() });
+}
+
+async function gfSaveThema(item) {
+  const payload = {
+    titel: item.titel || "", beschreibung: item.beschreibung || "", verantwortlich: item.verantwortlich || "",
+    status: item.status || "offen", termin: item.termin || "", erstellt: item.erstellt || "",
+    gruppe: item.gruppe || "",
+  };
+  const res = await fetch(`${GF_REST}?id=eq.${encodeURIComponent(item._id)}`, {
+    method: "PATCH",
+    headers: { ...gfHeaders(), Prefer: "return=representation" },
+    body: JSON.stringify({ data: payload, updated_at: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+}
+
+async function gfDeleteThema(id) {
+  const res = await fetch(`${GF_REST}?id=eq.${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: gfHeaders(),
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+}
+
+async function gfLoadProjektNotizen() {
+  if (!gfSession) { GF_PROJEKT_NOTIZEN = {}; return; }
+  try {
+    const res = await fetch(`${GF_PROJEKT_NOTIZEN_REST}?select=id,notiz,auftragswert,kosten,marge,risiko`, { headers: gfHeaders() });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const rows = await res.json();
+    GF_PROJEKT_NOTIZEN = {};
+    rows.forEach(r => { GF_PROJEKT_NOTIZEN[r.id] = r; });
+  } catch (err) {
+    GF_PROJEKT_NOTIZEN = {};
+    console.error("GF-Projektinfos konnten nicht geladen werden:", err);
+  }
+}
+
+async function saveGFProjektNotiz(projectId, fields) {
+  const payload = { id: projectId, ...fields, updated_at: new Date().toISOString() };
+  const res = await fetch(GF_PROJEKT_NOTIZEN_REST, {
+    method: "POST",
+    headers: { ...gfHeaders(), Prefer: "resolution=merge-duplicates,return=representation" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  GF_PROJEKT_NOTIZEN[projectId] = payload;
+}
+
+// GF-Themen und die Login/Logout-Anzeige sind jetzt Teil der normalen Dashboard-Seite
+// (kein eigener Tab mehr) - die Sichtbarkeit wird rein per gfSession gesteuert.
+function updateGFTopbar() {
+  const btn = document.getElementById("gf-topbar-btn");
+  if (gfSession) {
+    btn.textContent = "🔒 " + (gfSession.user && gfSession.user.email || "Angemeldet") + " · Abmelden";
+    btn.classList.add("logged-in");
+  } else {
+    btn.textContent = "🔒 GF-Anmeldung";
+    btn.classList.remove("logged-in");
+  }
+}
+
+// Sortiert Themen so, dass alle Punkte mit derselben (nicht-leeren) Gruppe direkt
+// untereinanderstehen - an der Position, an der die Gruppe zuerst auftaucht. Innerhalb
+// einer Gruppe und für ungruppierte Punkte bleibt die bisherige Reihenfolge stabil erhalten.
+function sortGFThemenForDisplay(list) {
+  const keyOf = (item, idx) => {
+    const g = (item.gruppe || "").trim();
+    return g ? "g:" + g : "i:" + (item._id || idx);
+  };
+  const firstIndexOfKey = new Map();
+  list.forEach((item, idx) => {
+    const key = keyOf(item, idx);
+    if (!firstIndexOfKey.has(key)) firstIndexOfKey.set(key, idx);
+  });
+  return list
+    .map((item, idx) => ({ item, idx, key: keyOf(item, idx) }))
+    .sort((a, b) => firstIndexOfKey.get(a.key) - firstIndexOfKey.get(b.key) || a.idx - b.idx)
+    .map(x => x.item);
+}
+
+function renderGFThemenSection() {
+  const section = document.getElementById("gf-themen-section");
+  const badge = document.getElementById("gf-user-badge");
+  updateGFTopbar();
+  if (!gfSession) {
+    section.classList.remove("visible");
+    return;
+  }
+  section.classList.add("visible");
+  badge.textContent = "Angemeldet als " + (gfSession.user && gfSession.user.email || "?");
+
+  const list = document.getElementById("gf-themen-list");
+  list.innerHTML = "";
+  if (!GF_THEMEN.length) {
+    const empty = document.createElement("div");
+    empty.className = "gf-empty";
+    empty.textContent = gfLoading ? "Lade Themen …" : "Noch keine Themen erfasst – mit „+ Thema hinzufügen“ anlegen.";
+    list.appendChild(empty);
+    return;
+  }
+
+  let lastGFGroup = null;
+  sortGFThemenForDisplay(GF_THEMEN).forEach(item => {
+    // Sammelüberschrift: Themen mit derselben (nicht-leeren) "Gruppe" werden unter einer
+    // gemeinsamen Überschrift zusammengefasst, sobald sie aufeinanderfolgen – genau wie bei
+    // gleichlautenden Titeln in der Protokoll-App.
+    const groupVal = (item.gruppe || "").trim();
+    if (groupVal && groupVal !== lastGFGroup) {
+      const gh = document.createElement("div");
+      gh.className = "gf-group-heading";
+      gh.innerHTML = `<span></span>`;
+      gh.querySelector("span").textContent = groupVal;
+      list.appendChild(gh);
+    }
+    lastGFGroup = groupVal;
+
+    const card = document.createElement("div");
+    card.className = "gf-thema-card";
+
+    const row1 = document.createElement("div");
+    row1.className = "gf-thema-row1";
+    const gruppeInput = document.createElement("input");
+    gruppeInput.type = "text";
+    gruppeInput.className = "gf-gruppe-input";
+    gruppeInput.placeholder = "Gruppe (optional)";
+    gruppeInput.title = "Themen mit derselben Gruppe werden unter einer Sammelüberschrift zusammengefasst";
+    gruppeInput.value = item.gruppe || "";
+    const titelInput = document.createElement("input");
+    titelInput.type = "text";
+    titelInput.className = "gf-titel";
+    titelInput.placeholder = "Thema";
+    titelInput.value = item.titel || "";
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "gf-thema-remove";
+    removeBtn.title = "Thema löschen";
+    removeBtn.textContent = "✕";
+    row1.appendChild(gruppeInput);
+    row1.appendChild(titelInput);
+    row1.appendChild(removeBtn);
+    card.appendChild(row1);
+
+    const desc = document.createElement("textarea");
+    desc.className = "gf-thema-desc";
+    desc.placeholder = "Beschreibung";
+    desc.value = item.beschreibung || "";
+    card.appendChild(desc);
+
+    const metaRow = document.createElement("div");
+    metaRow.className = "gf-thema-meta";
+    const respInput = document.createElement("input");
+    respInput.type = "text";
+    respInput.placeholder = "Verantwortlich";
+    respInput.value = item.verantwortlich || "";
+    const statusSelect = document.createElement("select");
+    OWN_TODO_STATUSES.forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s; opt.textContent = s;
+      if ((item.status || "offen") === s) opt.selected = true;
+      statusSelect.appendChild(opt);
+    });
+    const terminInput = document.createElement("input");
+    terminInput.type = "text";
+    terminInput.placeholder = "Termin (JJJJ-MM-TT oder ?)";
+    terminInput.value = item.termin || "";
+    metaRow.appendChild(respInput);
+    metaRow.appendChild(statusSelect);
+    metaRow.appendChild(terminInput);
+    card.appendChild(metaRow);
+
+    const flash = document.createElement("div");
+    flash.className = "gf-save-flash";
+    flash.textContent = "Gespeichert ✓";
+    card.appendChild(flash);
+
+    function flashSaved() {
+      flash.classList.add("show");
+      setTimeout(() => flash.classList.remove("show"), 1200);
+    }
+
+    async function persist() {
+      item.titel = titelInput.value;
+      item.gruppe = gruppeInput.value;
+      item.beschreibung = desc.value;
+      item.verantwortlich = respInput.value;
+      item.status = statusSelect.value;
+      item.termin = terminInput.value;
+      try {
+        await gfSaveThema(item);
+        flashSaved();
+      } catch (err) {
+        alert("Speichern fehlgeschlagen: " + err.message);
+      }
+    }
+
+    // Renderiert die Gruppen-Überschriften neu (Reihenfolge/Zusammenfassung kann sich ändern),
+    // Fokus bleibt dabei erhalten, da persist() nur den Wert im Datenmodell aktualisiert.
+    gruppeInput.addEventListener("blur", async () => { await persist(); renderGFThemenSection(); });
+    [titelInput, desc, respInput, terminInput].forEach(el => el.addEventListener("blur", persist));
+    statusSelect.addEventListener("change", persist);
+
+    removeBtn.addEventListener("click", async () => {
+      if (!confirm("Dieses Thema wirklich löschen?")) return;
+      try {
+        await gfDeleteThema(item._id);
+        GF_THEMEN = GF_THEMEN.filter(t => t._id !== item._id);
+        renderGFThemenSection();
+      } catch (err) {
+        alert("Löschen fehlgeschlagen: " + err.message);
+      }
+    });
+
+    list.appendChild(card);
+  });
+}
+
+async function gfRefreshAndRender() {
+  gfLoading = true;
+  renderGFThemenSection();
+  await Promise.all([gfLoadThemen(), gfLoadProjektNotizen()]);
+  gfLoading = false;
+  renderGFThemenSection();
+  renderTable(); // Projektzeilen zeigen jetzt ggf. zusätzliche GF-Blöcke
+}
+
+function openGFLoginModal() {
+  document.getElementById("gf-login-modal").classList.remove("hidden");
+  document.getElementById("gf-login-error").textContent = "";
+  document.getElementById("gf-email").focus();
+}
+function closeGFLoginModal() {
+  document.getElementById("gf-login-modal").classList.add("hidden");
+}
+
+function setupGF() {
+  const loginForm = document.getElementById("gf-login-form");
+  const errEl = document.getElementById("gf-login-error");
+  const topbarBtn = document.getElementById("gf-topbar-btn");
+  const themenToggle = document.getElementById("gf-themen-toggle");
+  const themenBody = document.getElementById("gf-themen-body");
+  const caret = document.getElementById("gf-collapse-caret");
+
+  if (!supabaseAuth) {
+    topbarBtn.disabled = true;
+    topbarBtn.title = "Anmeldung derzeit nicht verfügbar (Auth-Bibliothek konnte nicht geladen werden).";
+    return;
+  }
+
+  topbarBtn.addEventListener("click", async () => {
+    if (gfSession) {
+      if (!confirm("Von der Geschäftsführungs-Anmeldung abmelden?")) return;
+      await supabaseAuth.auth.signOut();
+      gfSession = null;
+      GF_THEMEN = [];
+      GF_PROJEKT_NOTIZEN = {};
+      renderGFThemenSection();
+      renderTable();
+    } else {
+      openGFLoginModal();
+    }
+  });
+
+  document.getElementById("gf-login-close").addEventListener("click", closeGFLoginModal);
+  document.getElementById("gf-login-modal").addEventListener("click", (e) => {
+    if (e.target.id === "gf-login-modal") closeGFLoginModal();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeGFLoginModal();
+  });
+
+  themenToggle.addEventListener("click", () => {
+    const collapsed = themenBody.classList.toggle("collapsed");
+    caret.textContent = collapsed ? "▸" : "▾";
+  });
+
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("gf-email").value.trim();
+    const password = document.getElementById("gf-password").value;
+    errEl.textContent = "";
+    const btn = document.getElementById("gf-login-submit");
+    btn.disabled = true;
+    try {
+      const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      gfSession = data.session;
+      document.getElementById("gf-password").value = "";
+      closeGFLoginModal();
+      await gfRefreshAndRender();
+    } catch (err) {
+      errEl.textContent = "Anmeldung fehlgeschlagen: falsche E-Mail/Passwort oder kein Zugang.";
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById("gf-add-btn").addEventListener("click", async () => {
+    try {
+      await gfCreateThema();
+      renderGFThemenSection();
+    } catch (err) {
+      alert("Anlegen fehlgeschlagen: " + err.message);
+    }
+  });
+
+  supabaseAuth.auth.onAuthStateChange((_event, session) => {
+    gfSession = session;
+  });
+
+  supabaseAuth.auth.getSession().then(({ data }) => {
+    gfSession = (data && data.session) || null;
+    if (gfSession) gfRefreshAndRender();
+  }).catch(() => {});
+}
+
+// ---------- View tabs ----------
+function setupTabs() {
+  const tabs = { dashboard: document.getElementById("tab-dashboard"), excel: document.getElementById("tab-excel") };
+  const panels = { dashboard: document.getElementById("view-dashboard"), excel: document.getElementById("view-excel") };
+  Object.keys(tabs).forEach(key => {
+    tabs[key].addEventListener("click", () => {
+      Object.keys(tabs).forEach(k => {
+        tabs[k].classList.toggle("active", k === key);
+        panels[k].classList.toggle("hidden", k !== key);
+      });
+    });
+  });
+}
+
+// ---------- Add project ----------
+function setupAddProject() {
+  document.getElementById("add-project-btn").addEventListener("click", async () => {
+    const name = window.prompt("Name des neuen Projekts (z.B. \"49 Musterstadt 1234 - FIMA\"):");
+    if (!name || !name.trim()) return;
+    try {
+      const created = await createProject(name.trim());
+      DATA.push(created);
+      DATA.sort((a, b) => projNum(a) - projNum(b) || (a.projekt || "").localeCompare(b.projekt || ""));
+      expandedId = created._id;
+      editingId = created._id;
+      renderAll();
+    } catch (err) {
+      alert("Anlegen fehlgeschlagen: " + err.message);
+    }
+  });
+}
+
+// ---------- Theme toggle ----------
+function setupTheme() {
+  const btn = document.getElementById("theme-toggle");
+  document.documentElement.setAttribute("data-theme", "light");
+  btn.textContent = "Dunkles Design";
+  btn.addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const next = cur === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    btn.textContent = next === "dark" ? "Helles Design" : "Dunkles Design";
+  });
+}
+
+function renderAll() {
+  document.getElementById("generated-meta").textContent =
+    "Live aus Supabase · " + DATA.length + " Projekte · zuletzt aktualisiert " + new Date().toLocaleString("de-DE");
+  renderKPIs();
+  renderPhaseChart();
+  renderTimeline();
+  renderTable();
+  renderGaps();
+  renderExcelView();
+}
+
+setupTheme();
+setupTabs();
+setupAddProject();
+setupGF();
+loadData();
+
+</script>
+</body>
+</html>
